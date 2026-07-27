@@ -1,0 +1,1 @@
+import{Router}from"express";import{requireAuth,requirePremium}from"../middleware/auth.js";import Exam from"../models/Exam.js";const router=Router();router.use(requireAuth);router.get("/me",(req,res)=>{res.json({user:{id:req.user._id,name:req.user.name,email:req.user.email,plan:req.user.plan,isPremium:req.user.isPremium(),usage:req.user.usage}})});export default router;
