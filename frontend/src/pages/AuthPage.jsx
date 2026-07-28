@@ -119,8 +119,8 @@ export default function AuthPage({ onLogin }) {
                 <div style={{fontSize:10,color:"#64748b"}}>3 tests / month</div>
               </div>
               <div style={{border:"1.5px solid #3B6FE8",borderRadius:8,padding:10,textAlign:"center",background:"#eff6ff"}}>
-                <div style={{fontSize:12,fontWeight:600,color:"#0F1629"}}>Premium</div>
-                <div style={{fontSize:17,fontWeight:700,color:"#3B6FE8",margin:"2px 0"}}>$9.99</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#0F1629"}}>Explorer</div>
+                <div style={{fontSize:17,fontWeight:700,color:"#3B6FE8",margin:"2px 0"}}>$29.99</div>
                 <div style={{fontSize:10,color:"#64748b"}}>Unlimited + analysis</div>
               </div>
             </div></>
