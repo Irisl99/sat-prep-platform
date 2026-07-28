@@ -31,10 +31,14 @@ Built with React, Node.js, MongoDB, Claude AI, and Stripe.
 ### 🚧 Sprint 2
 - Student Dashboard (In Progress)
 
-### 🔜 Coming Soon
-- Adaptive Test
-- Results Page
-- AI Analysis
+## 🗺️ Product Roadmap
+
+- ✅ User Authentication
+- 🚧 Student Dashboard
+- ⏳ Adaptive Testing Engine
+- ⏳ AI Performance Analysis
+- ⏳ Wrong Book
+- ⏳ Parent Dashboard
 
 
 
