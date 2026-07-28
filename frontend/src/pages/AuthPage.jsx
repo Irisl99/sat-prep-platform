@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-const API_URL = window.__SAT_API_URL__ || "http://localhost:3001";
+const API_URL = "https://sat-prep-platform-production.up.railway.app";
 
 async function apiCall(path, body) {
   const res = await fetch(`${API_URL}${path}`, {
