@@ -8,6 +8,26 @@
 
 ---
 
+## 🚀 Current Progress
+
+### ✅ Sprint 1
+- User Registration
+- User Login
+- JWT Authentication
+- Free / Explorer Plan Selection
+- MongoDB Integration
+- Mobile Responsive
+
+### 🚧 Sprint 2
+- Student Dashboard (In Progress)
+
+### 🔜 Coming Soon
+- Adaptive Test
+- Results Page
+- AI Analysis
+
+
+
 ## ✨ Features
 
 | Feature | Free | Premium |
