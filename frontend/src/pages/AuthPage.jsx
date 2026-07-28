@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 
 const API_URL = window.__SAT_API_URL__ || "http://localhost:3001";
 
