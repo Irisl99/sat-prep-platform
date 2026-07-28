@@ -47,6 +47,7 @@ export default function AuthPage({ onLogin }) {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState("free");
 
   function update(f) { return e => setForm(p => ({ ...p, [f]: e.target.value })); }
 
@@ -113,12 +114,12 @@ export default function AuthPage({ onLogin }) {
             <><div style={{fontSize:20,fontWeight:700,color:"#0F1629",marginBottom:4,letterSpacing:"-.3px"}}>Start for free</div>
             <div style={{fontSize:13,color:"#64748b",marginBottom:12}}>Already have an account? <a href="#" style={{color:"#3B6FE8",textDecoration:"none"}} onClick={e=>{e.preventDefault();setMode("login");setError("");}}>Sign in</a></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
-              <div style={{border:"1.5px solid #e2e8f0",borderRadius:8,padding:10,textAlign:"center"}}>
+              <div onClick={()=>setSelectedPlan("free")} style={{border:selectedPlan==="free"?"1.5px solid #3B6FE8":"1.5px solid #e2e8f0",borderRadius:8,padding:10,textAlign:"center",cursor:"pointer",background:selectedPlan==="free"?"#eff6ff":"#fff",transition:"all .15s"}}>
                 <div style={{fontSize:12,fontWeight:600,color:"#0F1629"}}>Free</div>
                 <div style={{fontSize:17,fontWeight:700,color:"#3B6FE8",margin:"2px 0"}}>$0</div>
                 <div style={{fontSize:10,color:"#64748b"}}>3 tests / month</div>
               </div>
-              <div style={{border:"1.5px solid #3B6FE8",borderRadius:8,padding:10,textAlign:"center",background:"#eff6ff"}}>
+              <div onClick={()=>setSelectedPlan("explorer")} style={{border:selectedPlan==="explorer"?"1.5px solid #3B6FE8":"1.5px solid #e2e8f0",borderRadius:8,padding:10,textAlign:"center",cursor:"pointer",background:selectedPlan==="explorer"?"#eff6ff":"#fff",transition:"all .15s"}}>
                 <div style={{fontSize:12,fontWeight:600,color:"#0F1629"}}>Explorer</div>
                 <div style={{fontSize:17,fontWeight:700,color:"#3B6FE8",margin:"2px 0"}}>$29.99</div>
                 <div style={{fontSize:10,color:"#64748b"}}>Unlimited + analysis</div>
