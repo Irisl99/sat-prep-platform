@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3001;
 
 // ── Security middleware ──────────────────────────────────────
 app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_URL, credentials: true }));
+app.use(cors({ origin: ["https://sat-prep-platform-beta.vercel.app", "http://localhost:5173"], credentials: true }));
 
 // Stripe webhook needs raw body — mount BEFORE express.json()
 app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
