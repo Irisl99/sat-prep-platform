@@ -44,7 +44,7 @@ Built with React, Node.js, MongoDB, Claude AI, and Stripe.
 
 ## ✨ Features
 
-| Feature | Free | Premium |
+| Feature | Free | Explorer |
 |---|---|---|
 | Adaptive practice tests (MST model) | ✅ 3/month | ✅ Unlimited |
 | AI-generated questions | ✅ | ✅ |
@@ -151,7 +151,7 @@ Open http://localhost:5173
 ## 💳 Freemium Model
 
 - **Free tier**: 3 full adaptive tests per month, basic score report
-- **Premium** ($9.99/month or $79/year): unlimited tests, detailed weakness analysis, drill sets, PDF export, score history
+- **Explorer** ($29.99/month): unlimited tests, detailed weakness analysis, drill sets, PDF export, score history
 - Payments handled by **Stripe Checkout** — no card data touches your server
 - Plan gating enforced server-side via middleware (never trust the client)
 
