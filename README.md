@@ -1,4 +1,14 @@
-# 🎯 SAT Prep Platform
+# SAT Prep Explorer
+
+AI-powered adaptive SAT learning platform that personalizes every student's learning journey.
+
+Built with React, Node.js, MongoDB, Claude AI, and Stripe.
+
+## 🌐 Live Demo
+
+👉 **[sat-prep-platform-beta.vercel.app](https://sat-prep-platform-beta.vercel.app)**
+
+
 
 > AI-powered adaptive SAT practice — built on the official College Board **Multistage Adaptive Testing (MST)** model.
 
