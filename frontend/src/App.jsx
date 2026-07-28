@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import AuthPage from "./pages/AuthPage";
 
 const API_URL = "http://localhost:3001";
