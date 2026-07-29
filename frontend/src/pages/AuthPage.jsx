@@ -93,7 +93,7 @@ export default function AuthPage({ onLogin }) {
         </div>
         <AnimatedScore />
         <div style={{display:"flex",flexDirection:"column",gap:8,position:"relative",zIndex:1}}>
-          {["Real MST adaptive engine — same as College Board","AI-generated questions, unlimited practice","Weakness analysis by domain after every test","IRT score conversion: 200–1600"].map(f=>(
+          {["Real MST adaptive engine — same as College Board","AI-generated questions, unlimited practice","Weakness analysis by domain after every test","SAT-style score estimate: 200–1600"].map(f=>(
             <div key={f} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#8892a4"}}>
               <div style={{width:5,height:5,borderRadius:"50%",background:"#3B6FE8",flexShrink:0}}/>
               {f}

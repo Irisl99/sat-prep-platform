@@ -1,6 +1,6 @@
 /**
  * SAT Adaptive Scoring Service
- * Approximates College Board's IRT-based score conversion.
+ * SAT-style estimated scoring using weighted correctness and adaptive module routing.
  *
  * Real SAT: 200–800 per section (400–1600 total)
  * Hard module routing adds ~40pt ceiling bonus.
