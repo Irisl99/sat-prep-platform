@@ -21,6 +21,7 @@
  *   - Only SUCCESSFULLY INSERTED questions count toward remaining needed
  *   - Failed calls leave slot remaining unchanged
  *   - Duplicate detection with regex-safe escaping before DB query
+ *   - Generation artifact hard gate before insertion
  *   - Call failure is isolated — other slots continue
  *   - No secrets logged
  */
@@ -85,39 +86,121 @@ const MAX_PER_CALL           = 5;
 const MODEL                  = 'claude-sonnet-4-6';
 const PILOT_TOTAL            = PILOT_SLOTS.length * PILOT_TARGET_PER_SLOT;
 
+const RW_DIFFICULTY_INSTRUCTIONS = {
+  easy: `Difficulty: Easy
+- The correct answer must be clearly supported by the passage through comprehension, not simple keyword matching.
+- Avoid trivial paraphrase questions where the first sentence directly restates the answer verbatim.
+- Distractors must be plausible but distinguishable with careful reading.
+- Use normal academic vocabulary. Do not use obscure or unusual words.`,
+
+  medium: `Difficulty: Medium
+- Require moderate inference, synthesis, or contextual interpretation to identify the correct answer.
+- Context clues supporting the answer may be distributed across multiple parts of the passage.
+- Distractors should reflect plausible partial readings, scope errors, or overgeneralizations.`,
+
+  hard: `Difficulty: Hard
+- Difficulty must come primarily from subtle reasoning, close distractors, nuanced context, or synthesis across the passage.
+- Do NOT create difficulty by using obscure or low-frequency vocabulary.
+- Prefer high-utility academic vocabulary that a college-bound student would encounter.
+- Avoid unnecessary lexical density in passage or question stem.
+- Distractors must be genuinely close: each should represent a plausible misreading or flawed reasoning path.`,
+};
+
+const MATH_DIFFICULTY_INSTRUCTIONS = {
+  easy: `Difficulty: Easy
+- Test direct application of one core concept.
+- Limit computation steps.
+- Avoid unnecessary traps or ambiguous conditions.
+- All values and relationships in the problem must be mutually consistent.`,
+
+  medium: `Difficulty: Medium
+- Require multiple linked steps or selection of the correct method.
+- Include plausible error paths that distractors should represent.
+- All values and relationships must be mutually consistent.`,
+
+  hard: `Difficulty: Hard
+- Require deeper reasoning, non-obvious problem setup, or multiple dependent steps.
+- Difficulty must NOT come from malformed, ambiguous, or contradictory conditions.
+- All supplied values and geometric or algebraic relationships MUST be internally consistent.
+- Before finalizing: recompute the answer, confirm all supplied values are mutually consistent,
+  confirm any geometry describes a valid configuration, and confirm exactly one answer follows.
+- If you detect any inconsistency while generating: discard that candidate and generate a new valid problem.
+- Do NOT output a repaired or "intended" answer. Do NOT explain the inconsistency in the explanation field.`,
+};
+
+const DISTRACTOR_REQUIREMENT = `Distractor design:
+- Provide exactly one defensible correct answer.
+- Each of the three wrong options must correspond to a plausible student error:
+  misreading, scope error, wrong inference, common calculation mistake,
+  overgeneralization, or partially correct reasoning.
+- Do not use obviously irrelevant filler options.
+- The explanation field must explain the correct solution cleanly.
+  Do NOT expose internal reasoning, self-correction, or generation process in the explanation.`;
+
+const TOPIC_DIVERSITY_REQUIREMENT = (count) =>
+  count > 1
+    ? `Topic diversity: Each of the ${count} questions must use a clearly different topic, scenario, or context from the others. Do not generate two questions about the same subject.`
+    : '';
+
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function buildPrompt(slot, count) {
-  const diffDesc = {
-    easy:   'easy difficulty (accessible to students scoring 400-550)',
-    medium: 'medium difficulty (appropriate for students scoring 550-700)',
-    hard:   'hard difficulty (challenging for students scoring 700-800)',
-  }[slot.difficulty];
+const ARTIFACT_PATTERNS = [
+  'Wait,',
+  'Wait—',
+  'Let me recheck',
+  'Let me reconsider',
+  'Reinterpreting',
+  'The intended answer',
+  'Correct intended problem',
+  'I need to reconsider',
+  'Actually, I made',
+  'I made an error',
+];
 
+function containsGenerationArtifacts(q) {
+  const fieldsToCheck = [q.question || '', q.explanation || ''];
+  for (const field of fieldsToCheck) {
+    for (const pattern of ARTIFACT_PATTERNS) {
+      if (field.includes(pattern)) {
+        return pattern;
+      }
+    }
+  }
+  return null;
+}
+
+function buildPrompt(slot, count) {
   if (slot.section === 'rw') {
+    const diffInstruction  = RW_DIFFICULTY_INSTRUCTIONS[slot.difficulty];
+    const topicInstruction = TOPIC_DIVERSITY_REQUIREMENT(count);
     return `Generate exactly ${count} Digital SAT Reading and Writing question(s).
 Section: Reading and Writing
 Domain: ${slot.domain}
 Skill: ${slot.skill}
-Difficulty: ${diffDesc}
+${diffInstruction}
 Type: Multiple choice (MCQ)
 Each question must include a short passage (30-80 words) from literature, history, science, or social science.
+${DISTRACTOR_REQUIREMENT}
+${topicInstruction}
 Return ONLY a valid JSON array, no markdown fences, no preamble.
 Schema: [{ "section":"rw","type":"mcq","difficulty":"${slot.difficulty}","domain":"${slot.domain}","skill":"${slot.skill}","passage":"string","passageSource":"string","question":"string","options":["A...","B...","C...","D..."],"answer":"A"|"B"|"C"|"D","explanation":"string" }]`;
   }
 
+  const diffInstruction  = MATH_DIFFICULTY_INSTRUCTIONS[slot.difficulty];
+  const topicInstruction = TOPIC_DIVERSITY_REQUIREMENT(count);
   const typeDesc = slot.type === 'grid'
     ? 'Student-produced response (grid-in). options must be null. answer must be a number string.'
-    : 'Multiple choice (MCQ). options must be an array of 4 strings. answer must be A, B, C, or D.';
+    : `Multiple choice (MCQ). options must be an array of 4 strings. answer must be A, B, C, or D.\n${DISTRACTOR_REQUIREMENT}`;
 
   return `Generate exactly ${count} Digital SAT Math question(s).
 Section: Math
 Domain: ${slot.domain}
 Skill: ${slot.skill}
-Difficulty: ${diffDesc}
+${diffInstruction}
 Type: ${typeDesc}
+${topicInstruction}
 Return ONLY a valid JSON array, no markdown fences, no preamble.
 Schema: [{ "section":"math","type":"${slot.type}","difficulty":"${slot.difficulty}","domain":"${slot.domain}","skill":"${slot.skill}","question":"string","options":${slot.type === 'grid' ? 'null' : '["A...","B...","C...","D..."]'},"answer":"${slot.type === 'grid' ? '<number_string>' : 'A|B|C|D'}","explanation":"string" }]`;
 }
@@ -170,7 +253,7 @@ async function generateForSlot(client, slot, count, slotNum, totalSlots) {
   console.log(`  [slot ${slotNum}/${totalSlots}] ${slot.section}/${slot.domain}/${slot.skill}/${slot.difficulty}/${slot.type} stop_reason=${stopReason} duration=${elapsed}s`);
 
   if (stopReason === 'max_tokens') {
-    throw new Error(`Generation truncated (max_tokens) — slot retains existing count`);
+    throw new Error(`Generation truncated (max_tokens) — slot will retain existing count`);
   }
 
   const raw   = message.content.filter(b => b.type === 'text').map(b => b.text).join('');
@@ -180,10 +263,10 @@ async function generateForSlot(client, slot, count, slotNum, totalSlots) {
   try {
     parsed = JSON.parse(clean);
   } catch (err) {
-    throw new Error(`JSON parse failed: ${err.message} — slot retains existing count`);
+    throw new Error(`JSON parse failed: ${err.message} — slot will retain existing count`);
   }
 
-  if (!Array.isArray(parsed)) throw new Error(`Response is not an array — slot retains existing count`);
+  if (!Array.isArray(parsed)) throw new Error(`Response is not an array — slot will retain existing count`);
 
   return parsed;
 }
@@ -247,10 +330,12 @@ function dryRun() {
     console.log(`  ${domain}: ${count}`);
   }
   console.log();
+
   console.log(`Call plan (${Math.min(MAX_PER_CALL, PILOT_TARGET_PER_SLOT)} questions/call, one slot per call):`);
   PILOT_SLOTS.forEach((slot, i) => {
     console.log(`  Call ${i+1}: ${slot.section}/${slot.skill}/${slot.difficulty}/${slot.type} x${PILOT_TARGET_PER_SLOT}`);
   });
+
   console.log('\n=== END DRY RUN ===');
 }
 
@@ -307,13 +392,13 @@ async function seed() {
       try {
         generatedQuestions = await generateForSlot(client, slot, requestCount, slotNum, plan.length);
       } catch (err) {
-        // Failed call: remaining is NOT reduced — slot retains existing count
         console.error(`  [call_error] slot=${slot.skill}/${slot.difficulty}/${slot.type}: ${err.message}`);
         totalCallErrors++;
         break;
       }
 
       for (const q of generatedQuestions) {
+        // Gate 1: Structural validation
         try {
           validateQuestion(q, slot);
         } catch (err) {
@@ -322,6 +407,15 @@ async function seed() {
           continue;
         }
 
+        // Gate 2: Generation artifact detection
+        const artifact = containsGenerationArtifacts(q);
+        if (artifact) {
+          console.warn(`  [artifact_reject] ${slot.skill}/${slot.difficulty}: matched pattern "${artifact}"`);
+          totalSkipped++;
+          continue;
+        }
+
+        // Gate 3: Exact/near-text duplicate detection
         const dup = await isDuplicate(q.question);
         if (dup) {
           console.warn(`  [duplicate_skip] ${slot.skill}/${slot.difficulty}: already exists`);
@@ -329,6 +423,7 @@ async function seed() {
           continue;
         }
 
+        // Insert
         try {
           await Question.create({
             section:          slot.section,
@@ -350,7 +445,6 @@ async function seed() {
             lastUsedAt:       null,
           });
 
-          // Only decrement remaining on confirmed successful insert
           insertedThisSlot++;
           totalInserted++;
           remaining--;
@@ -396,6 +490,9 @@ if (args.includes('--dry-run')) {
 
 export {
   PILOT_SLOTS, PILOT_TARGET_PER_SLOT, PILOT_TOTAL, MAX_PER_CALL,
+  RW_DIFFICULTY_INSTRUCTIONS, MATH_DIFFICULTY_INSTRUCTIONS,
+  DISTRACTOR_REQUIREMENT, TOPIC_DIVERSITY_REQUIREMENT,
+  ARTIFACT_PATTERNS, containsGenerationArtifacts,
   escapeRegExp, buildPrompt, validateQuestion, isDuplicate,
   buildSeedPlan, dryRun,
 };
