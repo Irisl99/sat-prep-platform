@@ -280,6 +280,7 @@ async function seed() {
       let generatedQuestions;
       try { generatedQuestions = await generateForSlot(client, slot, requestCount, slotNum, plan.length); }
       catch (err) { console.error(`  [call_error] slot=${slot.skill}/${slot.difficulty}/${slot.type}: ${err.message}`); totalCallErrors++; break; }
+      if (generatedQuestions.length !== requestCount) { console.warn(`  [count_mismatch] slot=${slot.skill}/${slot.difficulty}/${slot.type}: requested=${requestCount} received=${generatedQuestions.length} -- 0 inserted, slot unchanged, retry on next run`); totalCallErrors++; break; }
       for (const q of generatedQuestions) {
         try { validateQuestion(q, slot); }
         catch (err) { console.warn(`  [validation_fail] ${slot.skill}/${slot.difficulty}: ${err.message}`); totalSkipped++; continue; }
@@ -293,7 +294,7 @@ async function seed() {
           console.log(`  [inserted] ${slot.section}/${slot.skill}/${slot.difficulty}/${slot.type} (slot: ${insertedThisSlot}/${needed}, total: ${totalInserted})`);
         } catch (err) { console.error(`  [db_error] ${slot.skill}/${slot.difficulty}: ${err.message}`); totalSkipped++; }
       }
-      if (generatedQuestions.length < requestCount) { console.warn(`  [short_response] requested=${requestCount} received=${generatedQuestions.length} -- retry on next run`); break; }
+      
     }
   }
   console.log(`\n[seedBank] Complete.\n  inserted: ${totalInserted}\n  skipped: ${totalSkipped}\n  call_errors: ${totalCallErrors}\n  total in bank: ${await Question.countDocuments()}`);
