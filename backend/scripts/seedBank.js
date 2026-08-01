@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { pathToFileURL } from 'url';
+import { writeFileSync } from 'fs';
 import mongoose from 'mongoose';
 import Anthropic from '@anthropic-ai/sdk';
 import Question from '../src/models/Question.js';
@@ -153,18 +154,27 @@ function containsGenerationArtifacts(q) {
   return null;
 }
 
+// -- Shared JSON response contract -------------------------------------------
+// Applied to both RW and Math prompts. Shared to avoid divergence.
+// extractAndParseJSON() enforces this contract on every model response.
+const JSON_RESPONSE_CONTRACT =
+  'Your entire response must be one valid JSON array. ' +
+  'The first non-whitespace character must be [ and the last non-whitespace character must be ]. ' +
+  'Do not include markdown fences, notes, verification commentary, or any text outside the JSON array.';
+
+
 function buildPrompt(slot, count) {
   if (slot.section === 'rw') {
     const diffInstruction  = RW_DIFFICULTY_INSTRUCTIONS[slot.difficulty];
     const topicInstruction = TOPIC_DIVERSITY_REQUIREMENT(count);
-    return `Generate exactly ${count} Digital SAT Reading and Writing question(s).\nSection: Reading and Writing\nDomain: ${slot.domain}\nSkill: ${slot.skill}\n${diffInstruction}\nType: Multiple choice (MCQ)\nEach question must include a short passage (30-80 words) from literature, history, science, or social science.\n${DISTRACTOR_REQUIREMENT}\n${topicInstruction}\nReturn ONLY a valid JSON array, no markdown fences, no preamble.\nSchema: [{ "section":"rw","type":"mcq","difficulty":"${slot.difficulty}","domain":"${slot.domain}","skill":"${slot.skill}","passage":"string","passageSource":"string","question":"string","options":["A...","B...","C...","D..."],"answer":"A|B|C|D","explanation":"string" }]`;
+    return `Generate exactly ${count} Digital SAT Reading and Writing question(s).\nSection: Reading and Writing\nDomain: ${slot.domain}\nSkill: ${slot.skill}\n${diffInstruction}\nType: Multiple choice (MCQ)\nEach question must include a short passage (30-80 words) from literature, history, science, or social science.\n${DISTRACTOR_REQUIREMENT}\n${topicInstruction}\n${JSON_RESPONSE_CONTRACT}\nSchema: [{ "section":"rw","type":"mcq","difficulty":"${slot.difficulty}","domain":"${slot.domain}","skill":"${slot.skill}","passage":"string","passageSource":"string","question":"string","options":["A...","B...","C...","D..."],"answer":"A|B|C|D","explanation":"string" }]`;
   }
   const diffInstruction  = MATH_DIFFICULTY_INSTRUCTIONS[slot.difficulty];
   const topicInstruction = TOPIC_DIVERSITY_REQUIREMENT(count);
   const typeDesc = slot.type === 'grid'
     ? 'Student-produced response (grid-in). options must be null. answer must be a number string.'
     : `Multiple choice (MCQ). options must be an array of 4 strings. answer must be A, B, C, or D.\n${DISTRACTOR_REQUIREMENT}`;
-  return `Generate exactly ${count} Digital SAT Math question(s).\nSection: Math\nDomain: ${slot.domain}\nSkill: ${slot.skill}\n${diffInstruction}\nType: ${typeDesc}\n${topicInstruction}\nReturn ONLY a valid JSON array, no markdown fences, no preamble.\nSchema: [{ "section":"math","type":"${slot.type}","difficulty":"${slot.difficulty}","domain":"${slot.domain}","skill":"${slot.skill}","question":"string","options":${slot.type === 'grid' ? 'null' : '["A...","B...","C...","D..."]'},"answer":"<value>","explanation":"string" }]`;
+  return `Generate exactly ${count} Digital SAT Math question(s).\nSection: Math\nDomain: ${slot.domain}\nSkill: ${slot.skill}\n${diffInstruction}\nType: ${typeDesc}\n${topicInstruction}\n${JSON_RESPONSE_CONTRACT}\nSchema: [{ "section":"math","type":"${slot.type}","difficulty":"${slot.difficulty}","domain":"${slot.domain}","skill":"${slot.skill}","question":"string","options":${slot.type === 'grid' ? 'null' : '["A...","B...","C...","D..."]'},"answer":"<value>","explanation":"string" }]`;
 }
 
 const REQUIRED_FIELDS = {
@@ -201,13 +211,37 @@ async function generateForSlot(client, slot, count, slotNum, totalSlots) {
   const stopReason = message.stop_reason;
   console.log(`  [slot ${slotNum}/${totalSlots}] ${slot.section}/${slot.domain}/${slot.skill}/${slot.difficulty}/${slot.type} stop_reason=${stopReason} duration=${elapsed}s`);
   if (stopReason === 'max_tokens') throw new Error('Generation truncated (max_tokens) -- slot will retain existing count');
-  const raw   = message.content.filter(b => b.type === 'text').map(b => b.text).join('');
-  const clean = raw.replace(/```json|```/g, '').trim();
+  const raw = message.content.filter(b => b.type === 'text').map(b => b.text).join('');
   let parsed;
-  try { parsed = JSON.parse(clean); }
-  catch (err) { throw new Error(`JSON parse failed: ${err.message} -- slot will retain existing count`); }
-  if (!Array.isArray(parsed)) throw new Error('Response is not an array -- slot will retain existing count');
+  try { parsed = extractAndParseJSON(raw, slot); }
+  catch (err) { saveDebugResponse(raw, slot, err); throw new Error(err.message + ' -- slot will retain existing count'); }
   return parsed;
+}
+
+function extractAndParseJSON(raw, slot) {
+  let stripped = raw.trim();
+  const fm = stripped.match(/^```(?:json)?\n?([\s\S]*?)\n?```$/);
+  if (fm) { stripped = fm[1].trim(); }
+  if (!stripped.startsWith('[') || !stripped.endsWith(']')) {
+    const first = stripped.length > 0 ? stripped[0] : '(empty)';
+    const last  = stripped.length > 0 ? stripped[stripped.length - 1] : '(empty)';
+    throw new Error('[contract_violation] Response does not start with [ and end with ]. First: "' + first + '", Last: "' + last + '", chars: ' + raw.length);
+  }
+  let parsed;
+  try { parsed = JSON.parse(stripped); }
+  catch (err) { throw new Error('[json_parse_failed] ' + err.message + ' -- total chars: ' + raw.length); }
+  if (!Array.isArray(parsed)) throw new Error('[not_array] Parsed JSON is ' + typeof parsed + ', expected array');
+  return parsed;
+}
+
+function saveDebugResponse(raw, slot, err) {
+  const safeSkill = (slot.skill || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 40);
+  const debugPath = '/tmp/seedbank_debug_' + Date.now() + '_' + safeSkill + '.txt';
+  try {
+    writeFileSync(debugPath, raw, 'utf8');
+    console.warn('  [debug] raw response saved to ' + debugPath + ' (' + raw.length + ' chars, session-local, not committed)');
+    console.warn('  [debug] parse/contract error: ' + err.message);
+  } catch { /* ignore -- original error rethrown by caller */ }
 }
 
 async function buildSeedPlan() {
@@ -329,6 +363,8 @@ export {
   DISTRACTOR_REQUIREMENT, TOPIC_DIVERSITY_REQUIREMENT,
   ARTIFACT_PATTERNS, EXPLANATION_ARTIFACT_PATTERNS, QUESTION_ARTIFACT_PATTERNS,
   containsGenerationArtifacts,
-  escapeRegExp, buildPrompt, validateQuestion, isDuplicate,
+  JSON_RESPONSE_CONTRACT,
+  escapeRegExp, extractAndParseJSON, saveDebugResponse,
+  buildPrompt, validateQuestion, isDuplicate,
   buildSeedPlan, dryRun,
 };
