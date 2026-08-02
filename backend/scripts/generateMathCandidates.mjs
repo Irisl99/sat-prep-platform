@@ -211,13 +211,41 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
     if (artifact) { console.warn(`  [artifact_reject] Q${i+1}: "${artifact}"`); rejectedEntries.push({ candidateId: cid, rejectGate: 'artifact_reject', rejectReason: `matched "${artifact}"` }); continue; }
     const consistency = checkExplicitAnswerConsistency(q, slot);
     if (consistency) { console.warn(`  [consistency_reject] Q${i+1}: ${consistency}`); rejectedEntries.push({ candidateId: cid, rejectGate: 'consistency_reject', rejectReason: consistency }); continue; }
-    if (parseNumericAnswer(q.answer) === null) { const msg = `answer "${q.answer}" not numeric`; console.warn(`  [numeric_reject] Q${i+1}: ${msg}`); rejectedEntries.push({ candidateId: cid, rejectGate: 'numeric_reject', rejectReason: msg }); continue; }
-    if (q.options !== null && q.options !== undefined) { const msg = 'grid-in must have options=null'; console.warn(`  [grid_reject] Q${i+1}`); rejectedEntries.push({ candidateId: cid, rejectGate: 'grid_reject', rejectReason: msg }); continue; }
+    // Gate 5: Type-specific answer format sanity
+    // Grid-in: answer must be a valid numeric string (parseNumericAnswer)
+    // MCQ: answer must be exactly one of A/B/C/D (trimmed)
+    // This does NOT verify mathematical correctness — format only.
+    if (slot.type === 'grid') {
+      if (parseNumericAnswer(q.answer) === null) {
+        const msg = `answer "${q.answer}" is not a valid numeric string`;
+        console.warn(`  [numeric_reject] Q${i+1}: ${msg}`);
+        rejectedEntries.push({ candidateId: cid, rejectGate: 'numeric_reject', rejectReason: msg }); continue;
+      }
+      if (q.options !== null && q.options !== undefined) {
+        const msg = 'grid-in must have options=null';
+        console.warn(`  [grid_reject] Q${i+1}: ${msg}`);
+        rejectedEntries.push({ candidateId: cid, rejectGate: 'grid_reject', rejectReason: msg }); continue;
+      }
+    } else if (slot.type === 'mcq') {
+      // MCQ normalization policy: trim whitespace before checking.
+      // 'A ' -> 'A' -> passes. Other whitespace variants pass if they trim to A/B/C/D.
+      const trimmedAnswer = typeof q.answer === 'string' ? q.answer.trim() : '';
+      if (!['A','B','C','D'].includes(trimmedAnswer)) {
+        const msg = `answer "${q.answer}" is not a valid MCQ answer (must be A, B, C, or D)`;
+        console.warn(`  [mcq_answer_reject] Q${i+1}: ${msg}`);
+        rejectedEntries.push({ candidateId: cid, rejectGate: 'mcq_answer_reject', rejectReason: msg }); continue;
+      }
+      if (!Array.isArray(q.options) || q.options.length === 0) {
+        const msg = 'MCQ must have a non-empty options array';
+        console.warn(`  [mcq_options_reject] Q${i+1}: ${msg}`);
+        rejectedEntries.push({ candidateId: cid, rejectGate: 'mcq_options_reject', rejectReason: msg }); continue;
+      }
+    }
     const dup = await isDuplicate(q.question);
     if (dup) { console.warn(`  [duplicate_reject] Q${i+1}`); rejectedEntries.push({ candidateId: cid, rejectGate: 'duplicate_reject', rejectReason: 'already exists' }); continue; }
     passingCandidates.push({
       candidateId: cid, section: slot.section, domain: slot.domain, skill: slot.skill,
-      difficulty: slot.difficulty, type: slot.type, question: q.question, options: null,
+      difficulty: slot.difficulty, type: slot.type, question: q.question, options: slot.type === 'grid' ? null : (q.options ?? null),
       answer: String(q.answer), explanation: q.explanation,
       review: { decision: null, correctAnswer: null, uniqueAnswer: null, conditionsConsistent: null,
                 explanationCorrect: null, skillTagCorrect: null, difficultyCorrect: null,

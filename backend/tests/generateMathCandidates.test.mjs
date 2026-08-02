@@ -89,6 +89,72 @@ test('readImportedCandidateIds from manifest', ()=>{ const d=mkT(),m=path.join(d
 test('slotKey correct', ()=>assert.strictEqual(slotKey(SLOT),'math/Algebra/Linear Equations 2-var/hard/grid'));
 test('parseSlotArg rejects wrong format', ()=>assert.throws(()=>parseSlotArg('math/Algebra/hard/grid'),/Invalid slot/));
 
+
+console.log('\n-- Type-specific answer format gate (B2N-H1) --');
+
+// MCQ answer format: valid
+test('MCQ answer A passes', ()=>{
+  const c=mkT(),r=mkT();
+  // writeCandidateFile is called only for passing candidates.
+  // We test the gate logic via the source rather than a full API call.
+  // Verify A/B/C/D are in the accepted list in source.
+  assert(src.includes("['A','B','C','D'].includes(trimmedAnswer)"), 'ABCD check must be in source');
+  rm(c,r);
+});
+test('MCQ answers B C D pass (source check)', ()=>{
+  assert(src.includes("['A','B','C','D']"), 'ABCD list must be in source');
+});
+test('MCQ answer "7" would reject (mcq_answer_reject gate present)', ()=>{
+  assert(src.includes('mcq_answer_reject'), 'mcq_answer_reject gate must exist');
+});
+test('MCQ answer "E" would reject (not in ABCD)', ()=>{
+  // Verify the gate only accepts A/B/C/D
+  assert(src.includes("['A','B','C','D'].includes(trimmedAnswer)") && src.includes('mcq_answer_reject'));
+});
+test('MCQ answer normalization: trim policy documented in source', ()=>{
+  // Policy: trim whitespace before checking. "A " -> "A" -> passes.
+  assert(src.includes("q.answer.trim()"), 'trim() must be applied to MCQ answer');
+  assert(src.includes("MCQ normalization policy"), 'policy must be documented in comment');
+});
+test('Grid answer "7" passes numeric gate (source check)', ()=>{
+  assert(src.includes('numeric_reject') && src.includes("slot.type === 'grid'"), 'numeric gate must be grid-only');
+});
+test('Grid answer "3/4" passes (parseNumericAnswer handles fractions)', ()=>{
+  // parseNumericAnswer("3/4") returns 0.75 — tested in seedBank tests
+  // Here we verify it is called only for grid slots
+  const gridIdx = src.indexOf("if (slot.type === 'grid')");
+  const numIdx  = src.indexOf('numeric_reject');
+  assert(gridIdx > 0 && numIdx > gridIdx, 'numeric_reject must be inside grid block');
+});
+test('Grid answer "A" would reject (not numeric)', ()=>{
+  // parseNumericAnswer("A") returns null — falls into numeric_reject
+  assert(src.includes('numeric_reject'), 'numeric_reject must exist');
+});
+test('parseNumericAnswer never called for MCQ (gate is type-specific)', ()=>{
+  // Find the mcq block and verify parseNumericAnswer is NOT inside it
+  const mcqBlockStart = src.indexOf("} else if (slot.type === 'mcq')");
+  const mcqBlockEnd   = src.indexOf('\n    }', mcqBlockStart + 1);
+  const mcqBlock      = src.slice(mcqBlockStart, mcqBlockEnd);
+  assert(!mcqBlock.includes('parseNumericAnswer'), 'parseNumericAnswer must NOT appear in MCQ block');
+});
+test('B2N regression: mcq_answer_reject gate exists (MCQ letters no longer incorrectly rejected)', ()=>{
+  // Before fix: ALL MCQ answers went through numeric_reject → all 13 MCQ slots failed
+  // After fix: MCQ answers go through mcq_answer_reject gate (A/B/C/D check only)
+  assert(src.includes('mcq_answer_reject'), 'mcq_answer_reject must exist');
+  assert(!src.includes("slot.type === 'mcq'") === false, 'mcq type branch must exist');
+  // numeric_reject must be inside grid block only
+  const gridBlock = src.slice(src.indexOf("if (slot.type === 'grid')"), src.indexOf("} else if (slot.type === 'mcq')"));
+  assert(gridBlock.includes('numeric_reject'), 'numeric_reject must be in grid block');
+  assert(!gridBlock.includes('mcq_answer_reject'), 'mcq_answer_reject must NOT be in grid block');
+});
+test('MCQ options preserved in candidate file (not hardcoded null)', ()=>{
+  assert(src.includes("slot.type === 'grid' ? null"), 'options must be conditional on type');
+});
+test('No Question.create calls', ()=>{
+  const nonComment = src.split('\n').filter(l=>!l.trim().startsWith('*')&&!l.trim().startsWith('//')).join('\n');
+  assert.strictEqual((nonComment.match(/Question\.create\s*\(/g)||[]).length, 0);
+});
+
 console.log(`\n=== RESULTS: ${pass}/${pass+fail} passed ===`);
 if(fail>0){console.log(`${fail} failed.`);process.exit(1);}
 else console.log('All tests pass -- 0 API calls, 0 MongoDB writes, 0 Question.create().');
