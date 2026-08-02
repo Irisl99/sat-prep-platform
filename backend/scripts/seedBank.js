@@ -119,6 +119,16 @@ function escapeRegExp(str) {
 const WAIT_ARTIFACT_REGEX =
   /\bwait\s*[\u2014\u2013\-,:;]\s*(?:let me|i need to|recompute|recheck|reconsider|try|use)/i;
 
+// -- Broader self-correction regex (explanation field only) ------------------
+// Catches additional generation-process leakage observed in B2I failures:
+//   "Hmm -- let me choose cleaner numbers"  (B2I Q2 exact failure)
+//   "Let me restate:" / "Let me revise" / "Let me choose" / "Let me rework"
+//   "use cleaner numbers" / "rework the problem"
+// Verb whitelist is narrow: "Let me define/calculate/substitute" NOT matched.
+// ARTIFACT HYGIENE ONLY: does not verify mathematical correctness.
+const SELF_CORRECTION_REGEX =
+  /\b(?:hmm|hm)\s*[\u2014\u2013\-,;]|let me\s+(?:restate|revise|choose|rework|try again)|(?:use cleaner numbers|change the values|rework the problem)/i;
+
 function parseNumericAnswer(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
@@ -161,7 +171,7 @@ function checkExplicitAnswerConsistency(q, slot) {
   return null;
 }
 
-EXPLANATION_ARTIFACT_PATTERNS = [
+const EXPLANATION_ARTIFACT_PATTERNS = [
   'Let me recheck', 'Let me reconsider',
   'Let me use a cleaner', 'Let me try a different',
   'I need to reconsider', 'Actually, I made', 'I made an error',
@@ -187,9 +197,12 @@ const ARTIFACT_PATTERNS = [
 
 function containsGenerationArtifacts(q) {
   const explanation = q.explanation || '';
-  // WAIT regex: catches spacing variants missed by exact strings (explanation field only)
+  // Pass 1: WAIT regex -- catches spacing variants (explanation field only)
   const waitMatch = WAIT_ARTIFACT_REGEX.exec(explanation);
   if (waitMatch) return waitMatch[0];
+  // Pass 2: SELF_CORRECTION regex -- broader leakage detection (B2I Q2: "Hmm -- let me choose")
+  const selfMatch = SELF_CORRECTION_REGEX.exec(explanation);
+  if (selfMatch) return selfMatch[0];
   for (const pattern of EXPLANATION_ARTIFACT_PATTERNS) {
     if (explanation.includes(pattern)) return pattern;
   }
@@ -411,6 +424,7 @@ export {
   DISTRACTOR_REQUIREMENT, TOPIC_DIVERSITY_REQUIREMENT,
   ARTIFACT_PATTERNS, EXPLANATION_ARTIFACT_PATTERNS, QUESTION_ARTIFACT_PATTERNS,
   WAIT_ARTIFACT_REGEX,
+  SELF_CORRECTION_REGEX,
   EXPLICIT_ANSWER_PATTERNS,
   containsGenerationArtifacts,
   parseNumericAnswer,
