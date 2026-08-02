@@ -155,6 +155,73 @@ test('No Question.create calls', ()=>{
   assert.strictEqual((nonComment.match(/Question\.create\s*\(/g)||[]).length, 0);
 });
 
+
+console.log('\n-- Reviewed-only MongoDB satisfaction (B2N-H3) --');
+test('readManifestEntries exported',()=>assert(src.includes('export function readManifestEntries')));
+test('countReviewedInMongoDB exported',()=>assert(src.includes('export async function countReviewedInMongoDB')));
+test('$or clause with status:active',()=>{
+  const s=src.indexOf('export async function countReviewedInMongoDB');
+  const e=src.indexOf('\nexport ',s+1);
+  const b=src.slice(s,e);
+  assert(b.includes("status: 'active'"),'active clause missing');
+  assert(b.includes('$or: orClauses'),'$or missing');
+});
+test('importedQuestionIds from manifest questionId field',()=>{
+  const s=src.indexOf('export async function countReviewedInMongoDB');
+  const e=src.indexOf('\nexport ',s+1);
+  const b=src.slice(s,e);
+  assert(b.includes('entries.map(e => e.questionId)'));
+});
+test('structurally_validated NOT in count filter',()=>{
+  const s=src.indexOf('export async function countReviewedInMongoDB');
+  const e=src.indexOf('\nexport ',s+1);
+  const b=src.slice(s,e);
+  assert(!b.includes("structurally_validated"),'must not appear in filter');
+});
+test('known-failure and smoke-test docs excluded: rule comment in source',()=>{
+  assert(src.includes('smoke-test') && src.includes('known-failure'));
+});
+test('empty $in guard present',()=>{
+  const s=src.indexOf('export async function countReviewedInMongoDB');
+  const e=src.indexOf('\nexport ',s+1);
+  const b=src.slice(s,e);
+  assert(b.includes('importedQuestionIds.length > 0'));
+});
+test('MongoDB $or never double-counts: comment present',()=>assert(src.includes('never double-counts')));
+test('computeNeeded uses countReviewedInMongoDB not raw countDocuments',()=>{
+  const s=src.indexOf('export async function computeNeeded');
+  const e=src.indexOf('\nexport ',s+1);
+  const b=src.slice(s,e);
+  assert(b.includes('countReviewedInMongoDB(slot, manifestPath)'),'must call countReviewedInMongoDB');
+  assert(!b.includes('countDocuments'),'must not call raw countDocuments');
+});
+test('manifest-imported candidateId excluded from pending scan (no double-count)',()=>{
+  const d=mkT(),r=mkT(),m=path.join(d,'m.json');
+  wM(m,[{candidateId:'c1',questionId:'q-abc'}]);
+  wF(d,'c.json',SLOT,[mkC('c1','Keep')]);
+  const pending=countPendingCandidates(SLOT,d,r,m);
+  assert.strictEqual(pending,0,'manifest-imported must not count from file side');
+  rm(d,r);
+});
+test('reviewed Keep not in manifest counts as pending',()=>{
+  const d=mkT(),r=mkT();
+  wF(r,'r.json',SLOT,[mkC('c1','Keep')]);
+  const pending=countPendingCandidates(SLOT,d,r,path.join(d,'no.json'));
+  assert.strictEqual(pending,1);
+  rm(d,r);
+});
+test('reviewed Reject does not count toward satisfaction',()=>{
+  const d=mkT(),r=mkT();
+  wF(r,'r.json',SLOT,[mkC('c1','Reject')]);
+  const pending=countPendingCandidates(SLOT,d,r,path.join(d,'no.json'));
+  assert.strictEqual(pending,0);
+  rm(d,r);
+});
+test('B2N-H3 rule comment present in source',()=>assert(src.includes('counts toward Pilot slot satisfaction ONLY if')));
+test('No Question.create in non-comment',()=>{
+  const nc=src.split('\n').filter(l=>!l.trim().startsWith('*')&&!l.trim().startsWith('//')).join('\n');
+  assert.strictEqual((nc.match(/Question\.create\s*\(/g)||[]).length,0);
+});
 console.log(`\n=== RESULTS: ${pass}/${pass+fail} passed ===`);
 if(fail>0){console.log(`${fail} failed.`);process.exit(1);}
 else console.log('All tests pass -- 0 API calls, 0 MongoDB writes, 0 Question.create().');

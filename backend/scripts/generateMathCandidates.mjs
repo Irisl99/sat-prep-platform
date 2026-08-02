@@ -135,11 +135,45 @@ export function countPendingCandidates(
   return count;
 }
 
-export async function computeNeeded(slot, candidateDir, reviewDir, manifestPath) {
-  const inDb = await Question.countDocuments({
+// ── Read import manifest ────────────────────────────────────────────────────
+// Returns the raw manifest array, or [] if the manifest does not yet exist.
+export function readManifestEntries(manifestPath = DEFAULT_IMPORT_MANIFEST) {
+  if (!existsSync(manifestPath)) return [];
+  try {
+    const data = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    return Array.isArray(data) ? data : [];
+  } catch { return []; }
+}
+
+// ── Reviewed-only MongoDB count ──────────────────────────────────────────────
+// A MongoDB Question counts toward Pilot slot satisfaction ONLY if:
+//   1. Its _id appears in the import manifest as a questionId
+//      (proves it entered through the human-reviewed importer), OR
+//   2. Its status is 'active' (officially activated).
+//
+// This intentionally excludes structurally_validated documents that are:
+//   - smoke-test artefacts
+//   - known-failure documents (e.g. B2G, B2I)
+//   - historical QA fixtures
+//   - any unreviewed manually-inserted question
+// MongoDB $or never double-counts a document that matches multiple clauses.
+export async function countReviewedInMongoDB(slot, manifestPath = DEFAULT_IMPORT_MANIFEST) {
+  const entries = readManifestEntries(manifestPath);
+  const importedQuestionIds = entries.map(e => e.questionId).filter(Boolean);
+  const orClauses = [{ status: 'active' }];
+  if (importedQuestionIds.length > 0) {
+    // Only add $in when non-empty — an empty $in array matches nothing and is misleading
+    orClauses.push({ _id: { $in: importedQuestionIds } });
+  }
+  return Question.countDocuments({
     section: slot.section, domain: slot.domain, skill: slot.skill,
     difficulty: slot.difficulty, type: slot.type,
+    $or: orClauses,
   });
+}
+
+export async function computeNeeded(slot, candidateDir, reviewDir, manifestPath) {
+  const inDb    = await countReviewedInMongoDB(slot, manifestPath);
   const pending = countPendingCandidates(slot, candidateDir, reviewDir, manifestPath);
   return { inDb, pending, needed: Math.max(0, TARGET_PER_SLOT - inDb - pending) };
 }
