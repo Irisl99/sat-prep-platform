@@ -199,7 +199,7 @@ export function writeCandidateFile(candidates, rejected, slot, generatorVersion,
   return finalPath;
 }
 
-export async function generateSlot(client, slot, generatorVersion, candidateDir, manifestPath) {
+export async function generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, requestCount = TARGET_PER_SLOT) {
   const label = slotKey(slot);
   console.log(`\n[generate] ${label}`);
   const ts = Date.now().toString();
@@ -208,7 +208,7 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
   try {
     message = await client.messages.create({
       model: MODEL, max_tokens: 16000,
-      messages: [{ role: 'user', content: buildPrompt(slot, TARGET_PER_SLOT) }],
+      messages: [{ role: 'user', content: buildPrompt(slot, requestCount) }],
     });
   } catch (err) {
     console.error(`  [api_error] ${label}: ${err.message}`);
@@ -229,8 +229,8 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
     console.warn(`  [parse_fail] ${err.message}`);
     return { candidates: 0, rejected: 0, error: err.message };
   }
-  if (parsed.length !== TARGET_PER_SLOT) {
-    const msg = `[count_mismatch] expected=${TARGET_PER_SLOT} received=${parsed.length}`;
+  if (parsed.length !== requestCount) {
+    const msg = `[count_mismatch] expected=${requestCount} received=${parsed.length}`;
     console.warn(`  ${msg}`);
     return { candidates: 0, rejected: parsed.length, error: msg };
   }
@@ -339,7 +339,7 @@ export async function main() {
   let totalCandidates=0, totalRejected=0, totalSkipped=0, totalErrors=0;
   for (const { slot, needed } of plan) {
     if (needed === 0) { console.log(`[skip] ${slotKey(slot)}`); totalSkipped++; continue; }
-    const result = await generateSlot(client, slot, generatorVersion, candidateDir, manifestPath);
+    const result = await generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, needed);
     totalCandidates += result.candidates || 0;
     totalRejected   += result.rejected   || 0;
     if (result.error && !result.filePath) totalErrors++;

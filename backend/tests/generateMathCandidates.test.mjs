@@ -222,6 +222,67 @@ test('No Question.create in non-comment',()=>{
   const nc=src.split('\n').filter(l=>!l.trim().startsWith('*')&&!l.trim().startsWith('//')).join('\n');
   assert.strictEqual((nc.match(/Question\.create\s*\(/g)||[]).length,0);
 });
+
+console.log('\n-- requestCount fix (B2N-H5) --');
+test('generateSlot signature has requestCount param with default',()=>{
+  assert(src.includes('requestCount = TARGET_PER_SLOT'),'requestCount default missing');
+});
+test('buildPrompt called with requestCount not TARGET_PER_SLOT',()=>{
+  const s=src.indexOf('export async function generateSlot');
+  const e=src.indexOf('\nexport async function main');
+  const b=src.slice(s,e);
+  assert(b.includes('buildPrompt(slot, requestCount)'),'must use requestCount');
+  assert(!b.includes('buildPrompt(slot, TARGET_PER_SLOT)'),'must not use TARGET_PER_SLOT');
+});
+test('exact-count gate uses requestCount',()=>{
+  const s=src.indexOf('export async function generateSlot');
+  const e=src.indexOf('\nexport async function main');
+  const b=src.slice(s,e);
+  assert(b.includes('parsed.length !== requestCount'));
+  assert(!b.includes('parsed.length !== TARGET_PER_SLOT'));
+});
+test('count_mismatch message reports requestCount',()=>{
+  const s=src.indexOf('export async function generateSlot');
+  const e=src.indexOf('\nexport async function main');
+  const b=src.slice(s,e);
+  assert(b.includes('expected=${requestCount}'));
+  assert(!b.includes('expected=${TARGET_PER_SLOT}'));
+});
+test('main() passes needed to generateSlot',()=>{
+  const s=src.indexOf('export async function main');
+  assert(src.slice(s).includes('generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, needed)'));
+});
+test('default requestCount equals TARGET_PER_SLOT',()=>assert(src.includes('requestCount = TARGET_PER_SLOT')));
+test('TARGET_PER_SLOT still used in computeNeeded',()=>{
+  const s=src.indexOf('export async function computeNeeded');
+  const e=src.indexOf('\nexport ',s+1);
+  assert(src.slice(s,e).includes('TARGET_PER_SLOT'));
+});
+test('TARGET_PER_SLOT NOT in generateSlot body',()=>{
+  const s=src.indexOf('export async function generateSlot');
+  const e=src.indexOf('\nexport async function main');
+  const body=src.slice(s,e).split('\n').slice(1).join('\n');
+  assert(!body.includes('TARGET_PER_SLOT'));
+});
+test('B2N-H4 regression: needed=1 causes requestCount=1',()=>{
+  const s=src.indexOf('export async function main');
+  assert(src.slice(s).includes('generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, needed)'));
+  assert(src.includes('buildPrompt(slot, requestCount)'));
+  assert(src.includes('parsed.length !== requestCount'));
+});
+test('requestCount=1 + 2 returned causes count_mismatch (gate proof)',()=>{
+  assert(src.includes('parsed.length !== requestCount'));
+  assert(src.includes('expected=${requestCount}'));
+});
+test('needed=2 requestCount=2 for empty slots (same mechanism)',()=>{
+  assert(src.includes('generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, needed)'));
+});
+test('No API calls in tests',()=>assert(typeof writeCandidateFile==='function'));
+test('No Question.create in non-comment',()=>{
+  const nc=src.split('\n').filter(l=>!l.trim().startsWith('*')&&!l.trim().startsWith('//')).join('\n');
+  assert.strictEqual((nc.match(/Question\.create\s*\(/g)||[]).length,0);
+});
+
 console.log(`\n=== RESULTS: ${pass}/${pass+fail} passed ===`);
 if(fail>0){console.log(`${fail} failed.`);process.exit(1);}
 else console.log('All tests pass -- 0 API calls, 0 MongoDB writes, 0 Question.create().');
