@@ -116,8 +116,52 @@ function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const EXPLANATION_ARTIFACT_PATTERNS = [
-  'Wait,', 'Wait\u2014',
+const WAIT_ARTIFACT_REGEX =
+  /\bwait\s*[\u2014\u2013\-,:;]\s*(?:let me|i need to|recompute|recheck|reconsider|try|use)/i;
+
+function parseNumericAnswer(value) {
+  if (value === null || value === undefined) return null;
+  const s = String(value).trim();
+  if (s === '') return null;
+  const fractionMatch = s.match(/^(-?\d+)\/(-?\d+)$/);
+  if (fractionMatch) {
+    const num = parseInt(fractionMatch[1], 10);
+    const den = parseInt(fractionMatch[2], 10);
+    if (den === 0) return null;
+    return num / den;
+  }
+  const n = Number(s);
+  if (isNaN(n)) return null;
+  return n;
+}
+
+const EXPLICIT_ANSWER_PATTERNS = [
+  /\bthe answer is\s+([\d.\/\-]+)/gi,
+  /\bthe correct answer is\s+([\d.\/\-]+)/gi,
+  /\btherefore,?\s+the answer is\s+([\d.\/\-]+)/gi,
+  /\bthus,?\s+the answer is\s+([\d.\/\-]+)/gi,
+];
+const NUMERIC_TOLERANCE = 1e-9;
+
+function checkExplicitAnswerConsistency(q, slot) {
+  if (slot.section !== 'math' || slot.type !== 'grid') return null;
+  const expected = parseNumericAnswer(q.answer);
+  if (expected === null) return null;
+  const explanation = q.explanation || '';
+  for (const pattern of EXPLICIT_ANSWER_PATTERNS) {
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(explanation)) !== null) {
+      const detected = parseNumericAnswer(match[1]);
+      if (detected !== null && Math.abs(detected - expected) > NUMERIC_TOLERANCE) {
+        return '[answer_consistency_reject] answer field "' + q.answer + '" contradicts explanation conclusion "' + match[0].trim() + '" (detected: ' + match[1] + ')';
+      }
+    }
+  }
+  return null;
+}
+
+EXPLANATION_ARTIFACT_PATTERNS = [
   'Let me recheck', 'Let me reconsider',
   'Let me use a cleaner', 'Let me try a different',
   'I need to reconsider', 'Actually, I made', 'I made an error',
@@ -133,7 +177,6 @@ const EXPLANATION_ARTIFACT_PATTERNS = [
 ];
 
 const QUESTION_ARTIFACT_PATTERNS = [
-  'Wait,', 'Wait\u2014',
   'Let me recheck', 'Let me reconsider',
   'I made an error', 'Reinterpreting',
 ];
@@ -144,6 +187,9 @@ const ARTIFACT_PATTERNS = [
 
 function containsGenerationArtifacts(q) {
   const explanation = q.explanation || '';
+  // WAIT regex: catches spacing variants missed by exact strings (explanation field only)
+  const waitMatch = WAIT_ARTIFACT_REGEX.exec(explanation);
+  if (waitMatch) return waitMatch[0];
   for (const pattern of EXPLANATION_ARTIFACT_PATTERNS) {
     if (explanation.includes(pattern)) return pattern;
   }
@@ -320,6 +366,8 @@ async function seed() {
         catch (err) { console.warn(`  [validation_fail] ${slot.skill}/${slot.difficulty}: ${err.message}`); totalSkipped++; continue; }
         const artifact = containsGenerationArtifacts(q);
         if (artifact) { console.warn(`  [artifact_reject] ${slot.skill}/${slot.difficulty}: matched pattern "${artifact}"`); totalSkipped++; continue; }
+        const consistency = checkExplicitAnswerConsistency(q, slot);
+        if (consistency) { console.warn(`  [answer_consistency_reject] ${slot.skill}/${slot.difficulty}: ${consistency}`); totalSkipped++; continue; }
         const dup = await isDuplicate(q.question);
         if (dup) { console.warn(`  [duplicate_skip] ${slot.skill}/${slot.difficulty}: already exists`); totalSkipped++; continue; }
         try {
@@ -362,7 +410,11 @@ export {
   RW_DIFFICULTY_INSTRUCTIONS, MATH_DIFFICULTY_INSTRUCTIONS,
   DISTRACTOR_REQUIREMENT, TOPIC_DIVERSITY_REQUIREMENT,
   ARTIFACT_PATTERNS, EXPLANATION_ARTIFACT_PATTERNS, QUESTION_ARTIFACT_PATTERNS,
+  WAIT_ARTIFACT_REGEX,
+  EXPLICIT_ANSWER_PATTERNS,
   containsGenerationArtifacts,
+  parseNumericAnswer,
+  checkExplicitAnswerConsistency,
   JSON_RESPONSE_CONTRACT,
   escapeRegExp, extractAndParseJSON, saveDebugResponse,
   buildPrompt, validateQuestion, isDuplicate,
