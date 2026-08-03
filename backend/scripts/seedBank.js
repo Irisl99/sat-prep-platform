@@ -11,27 +11,27 @@ const PILOT_SLOTS = [
   { section:'rw', domain:'Craft and Structure',     skill:'Words in Context',           difficulty:'hard',   type:'mcq' },
   { section:'rw', domain:'Craft and Structure',     skill:'Text Structure and Purpose', difficulty:'easy',   type:'mcq' },
   { section:'rw', domain:'Craft and Structure',     skill:'Text Structure and Purpose', difficulty:'medium', type:'mcq' },
-  { section:'rw', domain:'Craft and Structure',     skill:'Cross-Text Connections',     difficulty:'medium', type:'mcq' },
-  { section:'rw', domain:'Craft and Structure',     skill:'Cross-Text Connections',     difficulty:'hard',   type:'mcq' },
+  { section:'rw', domain:'Craft and Structure',          skill:'Text Structure and Purpose', difficulty:'hard',   type:'mcq' },
   { section:'rw', domain:'Information and Ideas',   skill:'Central Ideas and Details',  difficulty:'easy',   type:'mcq' },
   { section:'rw', domain:'Information and Ideas',   skill:'Central Ideas and Details',  difficulty:'medium', type:'mcq' },
   { section:'rw', domain:'Information and Ideas',   skill:'Central Ideas and Details',  difficulty:'hard',   type:'mcq' },
-  { section:'rw', domain:'Information and Ideas',   skill:'Command of Evidence',        difficulty:'easy',   type:'mcq' },
-  { section:'rw', domain:'Information and Ideas',   skill:'Command of Evidence',        difficulty:'medium', type:'mcq' },
-  { section:'rw', domain:'Information and Ideas',   skill:'Command of Evidence',        difficulty:'hard',   type:'mcq' },
+  { section:'rw', domain:'Information and Ideas',   skill:'Command of Evidence Textual',        difficulty:'easy',   type:'mcq' },
+  { section:'rw', domain:'Information and Ideas',   skill:'Command of Evidence Textual',        difficulty:'medium', type:'mcq' },
+  { section:'rw', domain:'Information and Ideas',   skill:'Command of Evidence Textual',        difficulty:'hard',   type:'mcq' },
   { section:'rw', domain:'Information and Ideas',   skill:'Inferences',                 difficulty:'easy',   type:'mcq' },
   { section:'rw', domain:'Information and Ideas',   skill:'Inferences',                 difficulty:'medium', type:'mcq' },
   { section:'rw', domain:'Information and Ideas',   skill:'Inferences',                 difficulty:'hard',   type:'mcq' },
   { section:'rw', domain:'Expression of Ideas',     skill:'Rhetorical Synthesis',       difficulty:'easy',   type:'mcq' },
   { section:'rw', domain:'Expression of Ideas',     skill:'Rhetorical Synthesis',       difficulty:'medium', type:'mcq' },
+  { section:'rw', domain:'Expression of Ideas',          skill:'Rhetorical Synthesis',       difficulty:'hard',   type:'mcq' },
   { section:'rw', domain:'Expression of Ideas',     skill:'Transitions',                difficulty:'easy',   type:'mcq' },
   { section:'rw', domain:'Expression of Ideas',     skill:'Transitions',                difficulty:'medium', type:'mcq' },
-  { section:'rw', domain:'Expression of Ideas',     skill:'Transitions',                difficulty:'hard',   type:'mcq' },
-  { section:'rw', domain:'Std English Conventions', skill:'Boundaries',                 difficulty:'easy',   type:'mcq' },
-  { section:'rw', domain:'Std English Conventions', skill:'Boundaries',                 difficulty:'medium', type:'mcq' },
-  { section:'rw', domain:'Std English Conventions', skill:'Form Structure and Sense',   difficulty:'easy',   type:'mcq' },
-  { section:'rw', domain:'Std English Conventions', skill:'Form Structure and Sense',   difficulty:'medium', type:'mcq' },
-  { section:'rw', domain:'Std English Conventions', skill:'Form Structure and Sense',   difficulty:'hard',   type:'mcq' },
+  { section:'rw', domain:'Standard English Conventions', skill:'Boundaries',                 difficulty:'easy',   type:'mcq' },
+  { section:'rw', domain:'Standard English Conventions', skill:'Boundaries',                 difficulty:'medium', type:'mcq' },
+  { section:'rw', domain:'Standard English Conventions', skill:'Boundaries',                 difficulty:'hard',   type:'mcq' },
+  { section:'rw', domain:'Standard English Conventions', skill:'Form Structure and Sense',   difficulty:'easy',   type:'mcq' },
+  { section:'rw', domain:'Standard English Conventions', skill:'Form Structure and Sense',   difficulty:'medium', type:'mcq' },
+  { section:'rw', domain:'Standard English Conventions', skill:'Form Structure and Sense',   difficulty:'hard',   type:'mcq' },
   { section:'math', domain:'Algebra',              skill:'Linear Equations 1-var',     difficulty:'easy',   type:'mcq'  },
   { section:'math', domain:'Algebra',              skill:'Linear Equations 1-var',     difficulty:'easy',   type:'grid' },
   { section:'math', domain:'Algebra',              skill:'Linear Equations 1-var',     difficulty:'medium', type:'mcq'  },
@@ -226,7 +226,7 @@ function buildPrompt(slot, count) {
   if (slot.section === 'rw') {
     const diffInstruction  = RW_DIFFICULTY_INSTRUCTIONS[slot.difficulty];
     const topicInstruction = TOPIC_DIVERSITY_REQUIREMENT(count);
-    return `Generate exactly ${count} Digital SAT Reading and Writing question(s).\nSection: Reading and Writing\nDomain: ${slot.domain}\nSkill: ${slot.skill}\n${diffInstruction}\nType: Multiple choice (MCQ)\nEach question must include a short passage (30-80 words) from literature, history, science, or social science.\n${DISTRACTOR_REQUIREMENT}\n${topicInstruction}\n${JSON_RESPONSE_CONTRACT}\nSchema: [{ "section":"rw","type":"mcq","difficulty":"${slot.difficulty}","domain":"${slot.domain}","skill":"${slot.skill}","passage":"string","passageSource":"string","question":"string","options":["A...","B...","C...","D..."],"answer":"A|B|C|D","explanation":"string" }]`;
+    return `Generate exactly ${count} Digital SAT Reading and Writing question(s).\nSection: Reading and Writing\nDomain: ${slot.domain}\nSkill: ${slot.skill}\n${diffInstruction}\nType: Multiple choice (MCQ)\n\nPassage rules:\n- Every question must include a passage of 30-80 words. Do not exceed 80 words.\n- passageSource must be exactly one of: Literature | History/Social Studies | Science | Social Science\n- The passage content must accurately reflect the declared passageSource category.\n- The passage must be fully original. Do not reproduce, paraphrase, adapt, quote, or closely imitate any published copyrighted text.\n- The passage must be appropriate for the requested SAT skill.\n\nOptions rules:\n- Provide exactly four answer choices explicitly labeled A, B, C, and D.\n- answer must be exactly A, B, C, or D. Numeric answers are invalid.\n\n${DISTRACTOR_REQUIREMENT}\n${topicInstruction}\n${JSON_RESPONSE_CONTRACT}\nSchema: [{ "section":"rw","type":"mcq","difficulty":"${slot.difficulty}","domain":"${slot.domain}","skill":"${slot.skill}","passage":"string (30-80 words, fully original)","passageSource":"Literature|History/Social Studies|Science|Social Science","question":"string","options":["A. ...","B. ...","C. ...","D. ..."],"answer":"A|B|C|D","explanation":"string" }]`;
   }
   const diffInstruction  = MATH_DIFFICULTY_INSTRUCTIONS[slot.difficulty];
   const topicInstruction = TOPIC_DIVERSITY_REQUIREMENT(count);
@@ -237,7 +237,7 @@ function buildPrompt(slot, count) {
 }
 
 const REQUIRED_FIELDS = {
-  rw:   ['section','type','difficulty','domain','skill','passage','question','options','answer','explanation'],
+  rw:   ['section','type','difficulty','domain','skill','passage','passageSource','question','options','answer','explanation'],
   math: ['section','type','difficulty','domain','skill','question','answer','explanation'],
 };
 

@@ -283,6 +283,183 @@ test('No Question.create in non-comment',()=>{
   assert.strictEqual((nc.match(/Question\.create\s*\(/g)||[]).length,0);
 });
 
+
+console.log('\n-- C2: PILOT_SLOTS RW verification --');
+
+// Read seedBank.js source for slot and prompt checks
+const SB_PATH = path.resolve(__dirname, '..', 'scripts', 'seedBank.js');
+const sbSrc = fs.readFileSync(SB_PATH, 'utf8');
+
+// Parse RW slots from source
+function parseRWSlots(src) {
+  const blockMatch = src.match(/PILOT_SLOTS\s*=\s*\[([\s\S]*?)\];/);
+  if (!blockMatch) throw new Error('PILOT_SLOTS not found');
+  const block = blockMatch[1];
+  const slots = [];
+  const lineRe = /section:'rw'[^}]+domain:'([^']+)'[^}]+skill:'([^']+)'[^}]+difficulty:'([^']+)'[^}]+type:'([^']+)'/g;
+  let m;
+  while ((m = lineRe.exec(block)) !== null) {
+    slots.push({ domain: m[1], skill: m[2], difficulty: m[3], type: m[4] });
+  }
+  return slots;
+}
+
+const CANONICAL_DOMAINS = new Set([
+  'Craft and Structure', 'Information and Ideas',
+  'Standard English Conventions', 'Expression of Ideas'
+]);
+const CANONICAL_SKILLS = new Set([
+  'Words in Context', 'Text Structure and Purpose', 'Central Ideas and Details',
+  'Command of Evidence Textual', 'Inferences', 'Boundaries',
+  'Form Structure and Sense', 'Rhetorical Synthesis', 'Transitions'
+]);
+const DEFERRED_SKILLS = new Set(['Cross-Text Connections', 'Command of Evidence Quantitative']);
+
+const rwSlots = parseRWSlots(sbSrc);
+
+test('Exactly 26 RW slots', () => assert.strictEqual(rwSlots.length, 26, `Got ${rwSlots.length}`));
+
+test('No duplicate RW slot keys', () => {
+  const keys = rwSlots.map(s => `${s.domain}|${s.skill}|${s.difficulty}|${s.type}`);
+  const unique = new Set(keys);
+  assert.strictEqual(unique.size, 26, `Duplicates found: ${keys.filter((k,i) => keys.indexOf(k) !== i)}`);
+});
+
+test('All RW domains are canonical', () => {
+  for (const s of rwSlots)
+    assert(CANONICAL_DOMAINS.has(s.domain), `Non-canonical domain: '${s.domain}'`);
+});
+
+test('All RW skills are canonical', () => {
+  for (const s of rwSlots)
+    assert(CANONICAL_SKILLS.has(s.skill), `Non-canonical skill: '${s.skill}'`);
+});
+
+test('All RW types are mcq', () => {
+  for (const s of rwSlots)
+    assert.strictEqual(s.type, 'mcq', `Non-mcq type '${s.type}' in ${s.skill}/${s.difficulty}`);
+});
+
+test('Cross-Text Connections absent', () => {
+  assert(!rwSlots.some(s => s.skill === 'Cross-Text Connections'),
+    'Cross-Text Connections must be deferred');
+});
+
+test('Command of Evidence Quantitative absent', () => {
+  assert(!rwSlots.some(s => s.skill === 'Command of Evidence Quantitative'),
+    'CoE Quantitative must be deferred');
+});
+
+test('Transitions/hard absent (deferred)', () => {
+  assert(!rwSlots.some(s => s.skill === 'Transitions' && s.difficulty === 'hard'),
+    'Transitions/hard must be deferred');
+});
+
+test('Standard English Conventions (full name) present', () => {
+  assert(rwSlots.some(s => s.domain === 'Standard English Conventions'),
+    'Standard English Conventions not found');
+});
+
+test('Std English Conventions (abbreviation) absent', () => {
+  const blockMatch = sbSrc.match(/PILOT_SLOTS\s*=\s*\[([\s\S]*?)\];/);
+  assert(blockMatch && !blockMatch[1].includes('Std English Conventions'),
+    "'Std English Conventions' abbreviation must not appear in PILOT_SLOTS");
+});
+
+test('Command of Evidence Textual present (not bare Command of Evidence)', () => {
+  assert(rwSlots.some(s => s.skill === 'Command of Evidence Textual'),
+    'Command of Evidence Textual not found');
+  const blockMatch = sbSrc.match(/PILOT_SLOTS\s*=\s*\[([\s\S]*?)\];/);
+  const block = blockMatch[1];
+  // bare 'Command of Evidence' (not followed by Textual) must be absent
+  assert(!/'Command of Evidence'(?!\s*\+?\s*[Tt]extual)/.test(block.replace(/Command of Evidence Textual/g, '')),
+    "Bare 'Command of Evidence' found in PILOT_SLOTS");
+});
+
+test('Text Structure and Purpose/hard present', () => {
+  assert(rwSlots.some(s => s.skill === 'Text Structure and Purpose' && s.difficulty === 'hard'),
+    'Text Structure and Purpose/hard missing');
+});
+
+test('Rhetorical Synthesis/hard present', () => {
+  assert(rwSlots.some(s => s.skill === 'Rhetorical Synthesis' && s.difficulty === 'hard'),
+    'Rhetorical Synthesis/hard missing');
+});
+
+test('Boundaries/hard present', () => {
+  assert(rwSlots.some(s => s.skill === 'Boundaries' && s.difficulty === 'hard'),
+    'Boundaries/hard missing');
+});
+
+console.log('\n-- C2: buildPrompt() RW contract --');
+
+test('RW prompt contains passageSource field', () => {
+  assert(sbSrc.includes('passageSource'), 'passageSource not found in seedBank.js');
+});
+
+test('RW prompt requires exactly four canonical passageSource values', () => {
+  assert(sbSrc.includes('Literature | History/Social Studies | Science | Social Science'),
+    'Canonical passageSource values not found in RW prompt');
+});
+
+test('RW prompt requires passage originality (no copyrighted text)', () => {
+  assert(sbSrc.includes('Do not reproduce, paraphrase, adapt, quote'),
+    'Originality prohibition not found in RW prompt');
+});
+
+test('RW prompt requires passage to match declared passageSource', () => {
+  assert(sbSrc.includes('accurately reflect the declared passageSource'),
+    'passageSource accuracy requirement not found');
+});
+
+test('RW prompt specifies 30-80 word passage length', () => {
+  assert(sbSrc.includes('30-80 words'), 'Passage length requirement not found');
+});
+
+test('RW prompt requires exactly four options labeled A B C D', () => {
+  assert(sbSrc.includes('exactly four answer choices explicitly labeled A, B, C, and D'),
+    'Explicit four-option A/B/C/D requirement not found');
+});
+
+test('RW prompt requires answer A B C or D (no numeric)', () => {
+  assert(sbSrc.includes('answer must be exactly A, B, C, or D. Numeric answers are invalid'),
+    'Answer format requirement not found');
+});
+
+test('passageSource in REQUIRED_FIELDS.rw', () => {
+  const rfMatch = sbSrc.match(/REQUIRED_FIELDS\s*=\s*\{([\s\S]*?)\};/);
+  assert(rfMatch, 'REQUIRED_FIELDS not found');
+  const rwLine = rfMatch[1].split('\n').find(l => l.trim().startsWith('rw:'));
+  assert(rwLine && rwLine.includes('passageSource'),
+    `passageSource not in REQUIRED_FIELDS.rw — got: ${rwLine}`);
+});
+
+test('REQUIRED_FIELDS.math unchanged (no passageSource)', () => {
+  const rfMatch = sbSrc.match(/REQUIRED_FIELDS\s*=\s*\{([\s\S]*?)\};/);
+  assert(rfMatch, 'REQUIRED_FIELDS not found');
+  const mathLine = rfMatch[1].split('\n').find(l => l.trim().startsWith('math:'));
+  assert(mathLine && !mathLine.includes('passageSource'),
+    'passageSource must not appear in REQUIRED_FIELDS.math');
+});
+
+test('Math buildPrompt branch unchanged', () => {
+  assert(sbSrc.includes('Generate exactly ${count} Digital SAT Math'),
+    'Math prompt not found');
+  assert(!sbSrc.includes('Passage rules:') ||
+    sbSrc.indexOf('Passage rules:') > sbSrc.indexOf('section === \'rw\''),
+    'Passage rules leaked into Math branch');
+});
+
+test('0 API calls - buildPrompt() makes no direct API calls', () => {
+  // seedBank.js imports Anthropic for seed() only — buildPrompt() must not call the client
+  const bpStart = sbSrc.indexOf('function buildPrompt');
+  const bpEnd   = sbSrc.indexOf('\nfunction ', bpStart + 1);
+  const bpBody  = sbSrc.slice(bpStart, bpEnd);
+  assert(bpBody.indexOf('client.messages') === -1, 'buildPrompt must not make API calls');
+  assert(bpBody.indexOf('new Anthropic') === -1, 'buildPrompt must not instantiate Anthropic client');
+});
+
+
 console.log(`\n=== RESULTS: ${pass}/${pass+fail} passed ===`);
 if(fail>0){console.log(`${fail} failed.`);process.exit(1);}
 else console.log('All tests pass -- 0 API calls, 0 MongoDB writes, 0 Question.create().');
