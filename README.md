@@ -1,224 +1,419 @@
-# SAT Prep Explorer
+SAT Prep Explorer
 
-AI-powered adaptive SAT learning platform that personalizes every student's learning journey.
+AI-Powered Adaptive Learning Platform
+
+Personalizing how students learn, not just what they practice.
 
 Built with React, Node.js, MongoDB, Claude AI, and Stripe.
 
-## 🌐 Live Demo
-
-👉 **[sat-prep-platform-beta.vercel.app](https://sat-prep-platform-beta.vercel.app)**
+🚧 Private MVP · 🤖 AI-Native · 👩‍🏫 Teacher Reviewed · 📊 Evidence-Driven Product Development
 
 
 
-> AI-powered adaptive SAT practice — built on the official College Board **Multistage Adaptive Testing (MST)** model.
+Why We Built This
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+After more than a decade working directly with students, parents, and educators, we observed the same pattern across nearly every SAT preparation program.
 
----
+Most platforms personalize the initial diagnostic assessment—but not the learning journey that follows.
 
-## 🚀 Current Progress
+Students with different strengths, learning habits, and target scores often receive nearly identical study plans, practice questions, and review schedules.
 
-### ✅ Sprint 1
-- User Registration
-- User Login
-- JWT Authentication
-- Free / Explorer Plan Selection
-- MongoDB Integration
-- Mobile Responsive
+We believe personalization should be continuous.
 
-### 🚧 Sprint 2
-- Student Dashboard (In Progress)
+SAT Prep Explorer combines AI, human expertise, and real learning data to build learning experiences that continuously adapt to each student.
 
-## 🗺️ Product Roadmap
+We don't personalize the test.
 
-- ✅ User Authentication
-- 🚧 Student Dashboard
-- ⏳ Adaptive Testing Engine
-- ⏳ AI Performance Analysis
-- ⏳ Wrong Book
-- ⏳ Parent Dashboard
+We personalize the learning journey.
 
+Our Approach
 
+SAT Prep Explorer is built around four principles.
 
-## ✨ Features
+🎯 Adaptive Learning
 
-| Feature | Free | Explorer |
-|---|---|---|
-| Adaptive practice tests (MST model) | ✅ 3/month | ✅ Unlimited |
-| AI-generated questions | ✅ | ✅ |
-| Score report with accuracy % | ✅ | ✅ |
-| Detailed weakness analysis by domain | ❌ | ✅ |
-| Unlimited wrong-book review | ❌ | ✅ |
-| Score history & progress tracking | ❌ | ✅ |
-| Targeted drill sets by topic | ❌ | ✅ |
-| Export results as PDF | ❌ | ✅ |
+Learning plans evolve continuously based on each student's performance, goals, and progress.
 
----
+Personalization is an ongoing process—not a one-time diagnostic.
 
-## 🏗️ Architecture
+🤖 AI + Human Collaboration
 
-```
+AI accelerates content creation.
+
+Teachers validate every question before students see it.
+
+Human judgment remains the final quality gate.
+
+📊 Evidence-Driven Product Development
+
+Every major product decision is informed by continuous learning from:
+
+Students
+
+Parents
+
+SAT teachers
+
+We build based on evidence—not assumptions.
+
+⭐ Quality Before Scale
+
+Educational AI should earn trust before pursuing growth.
+
+We prioritize:
+
+Learning quality
+
+Question quality
+
+Student trust
+
+before shipping new features.
+
+🌐 Private MVP Demo
+
+👉 https://sat-prep-platform-beta.vercel.app
+
+🚀 Current Status
+
+✅ Completed
+
+User Registration
+
+User Login
+
+JWT Authentication
+
+Free / Explorer Plan Selection
+
+MongoDB Integration
+
+Mobile Responsive
+
+AI Question Generation Pipeline
+
+Teacher Review Workflow
+
+Stripe Integration
+
+Railway Deployment
+
+Vercel Deployment
+
+🚧 In Progress
+
+Student Dashboard
+
+Adaptive Learning Engine
+
+AI Performance Analysis
+
+🎯 Next
+
+Private Beta
+
+Parent Dashboard
+
+Wrong Book
+
+AP & ACT Expansion
+
+✨ Features
+
+Feature
+
+Free
+
+Explorer
+
+Adaptive practice tests (MST model)
+
+✅ 3/month
+
+✅ Unlimited
+
+AI-generated questions
+
+✅
+
+✅
+
+Score report with accuracy %
+
+✅
+
+✅
+
+Detailed weakness analysis by domain
+
+❌
+
+✅
+
+Unlimited Wrong Book review
+
+❌
+
+✅
+
+Score history & progress tracking
+
+❌
+
+✅
+
+Targeted drill sets by topic
+
+❌
+
+✅
+
+Export results as PDF
+
+❌
+
+✅
+
+AI Content Quality Pipeline
+
+AI Question Generation
+          │
+          ▼
+Automatic Validation
+          │
+          ▼
+Teacher Review
+          │
+          ▼
+Quality Approval
+          │
+          ▼
+Student Learning
+
+Our goal is not simply to generate more questions.
+
+Our goal is to generate questions students can trust.
+
+🏗️ Architecture
+
 sat-prep-platform/
-├── frontend/          # React SPA
-│   └── src/
-│       ├── components/   # Reusable UI
-│       ├── pages/        # Route-level views
-│       ├── hooks/        # Custom React hooks
-│       └── utils/        # Helpers & API client
-├── backend/           # Node.js + Express API
-│   └── src/
-│       ├── routes/       # REST endpoints
-│       ├── middleware/    # Auth, rate limiting, freemium gates
-│       ├── models/        # MongoDB schemas
-│       └── services/      # AI generation, scoring, Stripe
-└── docs/              # API docs, architecture diagrams
-```
+├── frontend/                  # React Single Page Application
+├── backend/                   # Node.js + Express API
+│   ├── src/
+│   ├── scripts/
+│   ├── tests/
+│   └── data/
+├── docs/
+└── README.md
 
----
+The platform consists of three primary layers:
 
-## 🚀 Quick Start
+Frontend — Student-facing React application
 
-### Prerequisites
-- Node.js 18+
-- MongoDB (local or [Atlas](https://www.mongodb.com/atlas))
-- Anthropic API key → [console.anthropic.com](https://console.anthropic.com)
-- Stripe account (for payments) → [stripe.com](https://stripe.com)
+Backend — Authentication, adaptive testing, AI services, billing, and APIs
 
-### 1. Clone & install
+AI Content Pipeline — Generation, validation, teacher review, and import workflow
 
-```bash
-git clone https://github.com/YOUR_USERNAME/sat-prep-platform.git
+🚀 Quick Start
+
+Prerequisites
+
+Node.js 18+
+
+MongoDB
+
+Anthropic API Key
+
+Stripe account (optional)
+
+Clone
+
+git clone https://github.com/Irisl99/sat-prep-platform.git
 cd sat-prep-platform
 
-# Install backend deps
+Install
+
 cd backend && npm install
 
-# Install frontend deps
 cd ../frontend && npm install
-```
 
-### 2. Configure environment
+Configure
 
-```bash
-# Backend
+Backend:
+
 cp backend/.env.example backend/.env
-# Fill in: MONGODB_URI, ANTHROPIC_API_KEY, JWT_SECRET, STRIPE_SECRET_KEY
 
-# Frontend
+Frontend:
+
 cp frontend/.env.example frontend/.env
-# Fill in: VITE_API_URL, VITE_STRIPE_PUBLISHABLE_KEY
-```
 
-### 3. Run locally
+Run
 
-```bash
-# Terminal 1 — backend (port 3001)
-cd backend && npm run dev
+Backend
 
-# Terminal 2 — frontend (port 5173)
-cd frontend && npm run dev
-```
+cd backend
+npm run dev
 
-Open http://localhost:5173
+Frontend
 
----
+cd frontend
+npm run dev
 
-## 🔑 Environment Variables
+Open:
 
-### Backend (`backend/.env`)
+http://localhost:5173
 
-| Variable | Description |
-|---|---|
-| `MONGODB_URI` | MongoDB connection string |
-| `ANTHROPIC_API_KEY` | Claude API key for question generation |
-| `JWT_SECRET` | Secret for signing JWTs (32+ random chars) |
-| `STRIPE_SECRET_KEY` | Stripe secret key (`sk_live_...`) |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
-| `FRONTEND_URL` | Frontend origin for CORS (e.g. `https://yourapp.com`) |
-| `PORT` | Server port (default: `3001`) |
+🔑 Environment Variables
 
-### Frontend (`frontend/.env`)
+Backend
 
-| Variable | Description |
-|---|---|
-| `VITE_API_URL` | Backend base URL (e.g. `http://localhost:3001`) |
-| `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (`pk_live_...`) |
+Variable
 
----
+Purpose
 
-## 💳 Freemium Model
+MONGODB_URI
 
-- **Free tier**: 3 full adaptive tests per month, basic score report
-- **Explorer** ($29.99/month): unlimited tests, detailed weakness analysis, drill sets, PDF export, score history
-- Payments handled by **Stripe Checkout** — no card data touches your server
-- Plan gating enforced server-side via middleware (never trust the client)
+MongoDB connection
 
----
+ANTHROPIC_API_KEY
 
-## 🚢 Deployment
+Claude API
 
-### Backend → Railway / Render
+JWT_SECRET
 
-```bash
-# railway.toml already included — just connect your GitHub repo
-railway up
-```
+Authentication
 
-### Frontend → Vercel
+STRIPE_SECRET_KEY
 
-```bash
+Stripe payments
+
+STRIPE_WEBHOOK_SECRET
+
+Webhook verification
+
+FRONTEND_URL
+
+CORS origin
+
+PORT
+
+Backend port
+
+Frontend
+
+Variable
+
+Purpose
+
+VITE_API_URL
+
+Backend API URL
+
+VITE_STRIPE_PUBLISHABLE_KEY
+
+Stripe public key
+
+💳 Freemium Model
+
+Free
+
+3 adaptive SAT practice tests per month
+
+Basic score report
+
+AI-generated questions
+
+Explorer
+
+$9.99/month or $79/year
+
+Unlimited adaptive practice
+
+Detailed weakness analysis
+
+Personalized drill recommendations
+
+Unlimited Wrong Book review
+
+Score history
+
+Learning analytics
+
+PDF exports
+
+Payments are securely processed through Stripe Checkout.
+
+🚢 Deployment
+
+Frontend: Vercel
+
 cd frontend
 vercel --prod
-```
 
-### Database → MongoDB Atlas
+Backend: Railway
 
-1. Create a free M0 cluster at [mongodb.com/atlas](https://www.mongodb.com/atlas)
-2. Whitelist your server IP
-3. Paste the connection string into `MONGODB_URI`
+railway up
 
----
+Database: MongoDB Atlas
 
-## 📡 API Reference
+📡 API Reference
 
-Full API docs at [`/docs/api.md`](docs/api.md). Key endpoints:
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/user/me
 
-```
-POST   /api/auth/register
-POST   /api/auth/login
-GET    /api/user/me
+POST /api/exam/start
+POST /api/exam/:id/submit
+GET  /api/exam/:id/results
 
-POST   /api/exam/start          # generate adaptive exam
-POST   /api/exam/:id/submit     # submit module, get routing decision
-GET    /api/exam/:id/results    # full results + weakness analysis
+GET  /api/user/history
+GET  /api/user/wrongbook
 
-GET    /api/user/history        # score history (premium)
-GET    /api/user/wrongbook      # wrong-book questions (premium)
+POST /api/billing/checkout
+POST /api/billing/webhook
 
-POST   /api/billing/checkout    # create Stripe checkout session
-POST   /api/billing/webhook     # Stripe webhook handler
-```
+Full API documentation will be published under docs/api.md.
 
----
+🤝 Contributing
 
-## 🤝 Contributing
+SAT Prep Explorer is currently under active private development.
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+At this stage, we are not accepting external code contributions or pull requests.
 
-- 🐛 Bug reports → [open an issue](../../issues)
-- 💡 Feature ideas → [start a discussion](../../discussions)
-- 🔧 Pull requests → fork → branch → PR against `main`
+Community collaboration may open after public beta as the platform matures.
 
----
+If you're interested in educational AI, adaptive learning, or future collaboration, feel free to reach out.
 
-## 📄 License
+💡 Founder Note
 
-MIT © 2024 — free to use, modify, and distribute. Commercial use permitted.
+SAT Prep Explorer began after years of working directly with students, parents, and educators.
 
----
+The goal was never to build another SAT question bank.
 
-## ⚠️ Disclaimer
+The goal is to build an adaptive learning platform that continuously learns alongside every student.
 
-This platform generates AI-simulated SAT-style questions for practice purposes. It is not affiliated with, endorsed by, or connected to College Board®. SAT® is a registered trademark of College Board.
+Technology scales.
+
+Trust compounds.
+
+We're just getting started.
+
+📄 License
+
+Copyright © 2026 Iris Li.
+
+All rights reserved.
+
+This repository is publicly visible for demonstration purposes only.
+
+No part of this source code may be copied, modified, redistributed, or used for commercial purposes without prior written permission.
+
+⚠️ Disclaimer
+
+SAT Prep Explorer is an independent educational technology project.
+
+It is not affiliated with, endorsed by, or sponsored by College Board®.
+
+SAT® is a registered trademark of College Board. All trademarks belong to their respective owners.
+
+AI-generated questions are designed for practice purposes only and should not be interpreted as official SAT materials.
