@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
+import { freezeMathCandidate } from '../src/services/mathCandidateValidation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GMC_PATH = path.resolve(__dirname, '..', 'scripts', 'generateMathCandidates.mjs');
@@ -22,11 +23,17 @@ const TARGET = 2;
 function mkT() { return fs.mkdtempSync(path.join(os.tmpdir(),'gmc-')); }
 function rm(...ds) { for(const d of ds) if(fs.existsSync(d)) fs.rmSync(d,{recursive:true}); }
 function mkC(id,dec=null) {
-  return { candidateId:id, section:'math', domain:'Algebra', skill:'Linear Equations 2-var',
+  const candidate = { candidateId:id, section:'math', domain:'Algebra', skill:'Linear Equations 2-var',
            difficulty:'hard', type:'grid', question:`Q ${id}`, options:null, answer:'5', explanation:'5.',
            review:{ decision:dec, correctAnswer:null, uniqueAnswer:null, conditionsConsistent:null,
                     explanationCorrect:null, skillTagCorrect:null, difficultyCorrect:null,
                     reviewerNotes:null, reviewedContent:null } };
+  candidate.validation = { candidateHash:freezeMathCandidate(candidate).candidateHash,
+    status:'independently_verified', verifiedAt:new Date().toISOString(), conditionsConsistent:true,
+    domainMatch:true, skillMatch:true, difficultyRating:'hard', difficultyMatch:true,
+    languageUnambiguous:true, solutionCount:1, solvedAnswer:'5', solverFormatRetries:0,
+    defensibleOptionCount:null, distractorsPlausible:null };
+  return candidate;
 }
 function wF(dir,fn,slot,candidates,rejected=[]) {
   fs.writeFileSync(path.join(dir,fn), JSON.stringify({
@@ -67,6 +74,8 @@ test('generatorVersion written to file', ()=>{ const d=mkT(); const fp=writeCand
 
 console.log('\n-- Slot satisfaction --');
 test('Pending candidate counts', ()=>{ const c=mkT(),r=mkT(); wF(c,'c.json',SLOT,[mkC('c1',null)]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),1); rm(c,r); });
+test('Unverified candidate does not count as pending coverage', ()=>{ const c=mkT(),r=mkT(); const item=mkC('c1',null); delete item.validation; wF(c,'c.json',SLOT,[item]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),0); rm(c,r); });
+test('Malformed stored verification does not count as pending coverage', ()=>{ const c=mkT(),r=mkT(); const item=mkC('c1',null); item.validation.distractorsPlausible='null'; wF(c,'c.json',SLOT,[item]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),0); rm(c,r); });
 test('Keep in review counts', ()=>{ const c=mkT(),r=mkT(); wF(r,'r.json',SLOT,[mkC('c1','Keep')]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),1); rm(c,r); });
 test('Edit in review does not count: changed Math content must be regenerated', ()=>{ const c=mkT(),r=mkT(); wF(r,'r.json',SLOT,[mkC('c1','Edit')]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),0); rm(c,r); });
 test('Reject does NOT count', ()=>{ const c=mkT(),r=mkT(); wF(r,'r.json',SLOT,[mkC('c1','Reject')]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),0); rm(c,r); });

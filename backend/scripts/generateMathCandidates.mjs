@@ -45,6 +45,7 @@ import {
 } from './seedBank.js';
 import {
   findSetLevelDuplicate, freezeMathCandidate, findSatScopeViolation, independentlyValidateMathCandidate,
+  validateStoredIndependentVerification,
 } from '../src/services/mathCandidateValidation.js';
 import {
   buildMathQuestionPrompt, createAnthropicBlindSolver, createAnthropicVerifiedExplainer,
@@ -160,6 +161,7 @@ export function countPendingCandidates(
   for (const data of scanFiles(reviewDir, key)) {
     for (const c of (data.candidates || [])) {
       if (!c.candidateId || importedIds.has(c.candidateId)) continue;
+      if (validateStoredIndependentVerification(c) !== null) continue;
       if (!reviewDecisions.has(c.candidateId))
         reviewDecisions.set(c.candidateId, c.review?.decision ?? null);
     }
@@ -168,6 +170,7 @@ export function countPendingCandidates(
   for (const data of scanFiles(candidateDir, key)) {
     for (const c of (data.candidates || [])) {
       if (!c.candidateId || importedIds.has(c.candidateId)) continue;
+      if (validateStoredIndependentVerification(c) !== null) continue;
       if (reviewDecisions.has(c.candidateId)) continue;
       pendingOnly.add(c.candidateId);
     }
