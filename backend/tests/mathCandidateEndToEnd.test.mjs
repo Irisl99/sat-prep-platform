@@ -45,5 +45,21 @@ assert.strictEqual(rejection.auditEvidence.frozenProblem.answer,undefined);
 assert.strictEqual(rejection.auditEvidence.frozenProblem.explanation,undefined);
 assert.strictEqual(rejection.auditEvidence.frozenProblem.candidateHash,rejection.auditEvidence.solverEvidence.candidateHash);
 assert(rejection.auditEvidence.note.includes('must not be used to repair'));
+
+const explanationRejectResult=await generateSlot(client,slot,'fixture-version',outputDir,'/tmp/not-used.json',1,{
+  isDuplicate:async()=>false,
+  solveBlind:async input=>({candidateHash:input.candidateHash,status:'solved',conditionsConsistent:true,
+    domainMatch:true,skillMatch:true,difficultyRating:'easy',difficultyMatch:true,languageUnambiguous:true,
+    solutionCount:1,answer:'C',defensibleOptionCount:1,distractorsPlausible:true,
+    method:'algebra',solution:'Divide both sides by 2 to get x = 4.'}),
+  explainVerified:async()=> 'Let me reconsider. Divide both sides by 2.',
+});
+assert.strictEqual(explanationRejectResult.rejected,1);
+const explanationRejectPayload=JSON.parse(fs.readFileSync(explanationRejectResult.filePath,'utf8'));
+const explanationRejection=explanationRejectPayload.rejected[0];
+assert.strictEqual(explanationRejection.rejectGate,'artifact_reject');
+assert.strictEqual(explanationRejection.auditEvidence.generatorAnswer,'C');
+assert.strictEqual(explanationRejection.auditEvidence.solverEvidence.answer,'C');
+assert.strictEqual(explanationRejection.auditEvidence.generatedExplanation,'Let me reconsider. Divide both sides by 2.');
 fs.rmSync(outputDir,{recursive:true});
-console.log('=== RESULTS: 2/2 end-to-end fixtures passed ===');
+console.log('=== RESULTS: 3/3 end-to-end fixtures passed ===');

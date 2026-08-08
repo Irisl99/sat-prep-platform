@@ -98,7 +98,7 @@ export function makeCandidateId(slot, timestamp, index) {
   return `math_${makeSkillSlug(slot.skill)}_${slot.difficulty}_${slot.type}_${timestamp}_${index}`;
 }
 
-export function buildIndependentRejectionEvidence(candidate, solverResult) {
+export function buildIndependentRejectionEvidence(candidate, solverResult, generatedExplanation = null) {
   const frozenProblem = freezeMathCandidate(candidate);
   const solverEvidence = solverResult && typeof solverResult === 'object' ? {
     candidateHash: solverResult.candidateHash ?? null,
@@ -121,6 +121,7 @@ export function buildIndependentRejectionEvidence(candidate, solverResult) {
     frozenProblem,
     generatorAnswer: String(candidate.answer),
     solverEvidence,
+    generatedExplanation,
     note: 'Frozen problem is immutable; evidence is for audit only and must not be used to repair the candidate.',
   };
 }
@@ -349,15 +350,19 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
     catch (err) {
       const msg = `verified explanation failed: ${err.message}`;
       console.warn(`  [explanation_reject] Q${i+1}: ${msg}`);
-      rejectedEntries.push({ candidateId: cid, rejectGate: 'explanation_reject', rejectReason: msg }); continue;
+      rejectedEntries.push({ candidateId: cid, rejectGate: 'explanation_reject', rejectReason: msg,
+        auditEvidence: buildIndependentRejectionEvidence(candidateForValidation, independent.solverResult) }); continue;
     }
     const finalCandidate = { ...candidateForValidation, explanation };
     const finalArtifact = containsGenerationArtifacts(finalCandidate);
-    if (finalArtifact) { rejectedEntries.push({ candidateId: cid, rejectGate: 'artifact_reject', rejectReason: `matched "${finalArtifact}"` }); continue; }
+    if (finalArtifact) { rejectedEntries.push({ candidateId: cid, rejectGate: 'artifact_reject', rejectReason: `matched "${finalArtifact}"`,
+      auditEvidence: buildIndependentRejectionEvidence(candidateForValidation, independent.solverResult, explanation) }); continue; }
     const finalConsistency = checkExplicitAnswerConsistency(finalCandidate, slot);
-    if (finalConsistency) { rejectedEntries.push({ candidateId: cid, rejectGate: 'consistency_reject', rejectReason: finalConsistency }); continue; }
+    if (finalConsistency) { rejectedEntries.push({ candidateId: cid, rejectGate: 'consistency_reject', rejectReason: finalConsistency,
+      auditEvidence: buildIndependentRejectionEvidence(candidateForValidation, independent.solverResult, explanation) }); continue; }
     const finalScopeViolation = findSatScopeViolation(explanation);
-    if (finalScopeViolation) { rejectedEntries.push({ candidateId: cid, rejectGate: 'sat_scope_reject', rejectReason: finalScopeViolation }); continue; }
+    if (finalScopeViolation) { rejectedEntries.push({ candidateId: cid, rejectGate: 'sat_scope_reject', rejectReason: finalScopeViolation,
+      auditEvidence: buildIndependentRejectionEvidence(candidateForValidation, independent.solverResult, explanation) }); continue; }
     const frozen = freezeMathCandidate(candidateForValidation);
     passingCandidates.push({
       candidateId: cid, section: slot.section, domain: slot.domain, skill: slot.skill,
