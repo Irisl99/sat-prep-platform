@@ -18,7 +18,8 @@ function mkC(id,decision='Keep',overrides={}){
     question:`If 2x + y = 10 and x - y = 2, what is x? (${id})`,options:null,answer:'4',
     explanation:'From x - y = 2: y = x - 2. Then 3x = 12, x = 4.',
     review:{decision,correctAnswer:bv,uniqueAnswer:bv,conditionsConsistent:bv,explanationCorrect:bv,skillTagCorrect:true,difficultyCorrect:true,
-      reviewer:'test-reviewer',reviewedAt:new Date().toISOString(),reviewerNotes:'ok',reviewedContent:null,...(overrides.reviewFields||{})},
+      reviewer:'test-reviewer',reviewerRole:'math_expert',expertAttestation:true,
+      reviewedAt:new Date().toISOString(),reviewerNotes:'ok',reviewedContent:null,...(overrides.reviewFields||{})},
     ...(overrides.candidateFields||{})};
   candidate.validation={candidateHash:freezeMathCandidate(candidate).candidateHash,status:'independently_verified',
     verifiedAt:new Date().toISOString(),solutionCount:1,conditionsConsistent:true,solvedAnswer:String(candidate.answer),defensibleOptionCount:null,
@@ -41,7 +42,7 @@ test('seedBank helpers reused not duplicated',()=>{assert(src.includes("from './
 test('No Anthropic import',()=>assert(!src.includes("from '@anthropic-ai/sdk'")));
 test('Exactly 1 Question.create in non-comment',()=>{const c=(nonComment.match(/Question\.create\s*\(/g)||[]).length;assert.strictEqual(c,1,`got ${c}`);});
 test('isDirectExecution guard',()=>assert(src.includes('isDirectExecution')&&src.includes('pathToFileURL')));
-test('status=structurally_validated hardcoded',()=>assert(src.includes("status:'structurally_validated'")));
+test('status=expert_approved hardcoded',()=>assert(src.includes("status:'expert_approved'")));
 console.log('\n-- validateBatchStructure --');
 test('Valid batch passes',()=>assert.strictEqual(validateBatchStructure({generatorVersion:'v1',generatedAt:'d',generatedByModel:'m',slot:{},candidates:[]}),null));
 test('Missing generatorVersion fails',()=>assert(validateBatchStructure({generatedAt:'d',generatedByModel:'m',slot:{},candidates:[]})!==null));
@@ -69,6 +70,8 @@ test('decision=approve refuses',()=>assert(validateReviewSchema(mkC('c1','approv
 test('reviewer empty refuses (Option A)',()=>{const c=mkC('c1','Keep',{reviewFields:{reviewer:''}});const err=validateReviewSchema(c);assert(err!==null&&err.includes('reviewer'),`Got:${err}`);});
 test('reviewerId only refuses (Option A: no fallback)',()=>{const c=mkC('c1','Keep',{reviewFields:{reviewer:'',reviewerId:'someone'}});const err=validateReviewSchema(c);assert(err!==null,`reviewerId alone must not pass`);});
 test('reviewedAt empty refuses',()=>assert(validateReviewSchema(mkC('c1','Keep',{reviewFields:{reviewedAt:''}}))!==null));
+test('non-expert reviewer role refuses',()=>assert(validateReviewSchema(mkC('c1','Keep',{reviewFields:{reviewerRole:'general_reviewer'}}))!==null));
+test('expert attestation must be true',()=>assert(validateReviewSchema(mkC('c1','Keep',{reviewFields:{expertAttestation:false}}))!==null));
 test('correctness field null refuses',()=>assert(validateReviewSchema(mkC('c1','Keep',{reviewFields:{correctAnswer:null}}))!==null));
 test('correctness field missing refuses',()=>{const c=mkC('c1','Keep');delete c.review.uniqueAnswer;assert(validateReviewSchema(c)!==null);});
 test('Keep with any false correctness field refuses',()=>assert(validateReviewSchema(mkC('c1','Keep',{reviewFields:{uniqueAnswer:false}}))!==null));
@@ -128,7 +131,7 @@ await testA('Dry-run: 0 manifest 0 audit writes',async()=>{
   assert(!fs.existsSync(m),'no manifest in dry-run');
   assert(!fs.existsSync(rejDir)||fs.readdirSync(rejDir).length===0,'no audit in dry-run');rm(d);});
 console.log('\n-- Source checks --');
-test('status=structurally_validated hardcoded',()=>assert(src.includes("status:'structurally_validated'")));
+test('status=expert_approved hardcoded',()=>assert(src.includes("status:'expert_approved'")));
 test('No Anthropic SDK',()=>assert(!src.includes("from '@anthropic-ai/sdk'")));
 test('rejectStage in audit entries',()=>assert(src.includes('rejectStage')));
 test('MANIFEST WRITE FAILED warning with _id',()=>{assert(src.includes('MANIFEST WRITE FAILED'));assert(src.includes('doc._id'));});

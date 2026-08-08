@@ -152,28 +152,19 @@ export function readManifestEntries(manifestPath = DEFAULT_IMPORT_MANIFEST) {
 
 // ── Reviewed-only MongoDB count ──────────────────────────────────────────────
 // A MongoDB Question counts toward Pilot slot satisfaction ONLY if:
-//   1. Its _id appears in the import manifest as a questionId
-//      (proves it entered through the human-reviewed importer), OR
-//   2. Its status is 'active' (officially activated).
+//   Its status is exactly 'expert_approved'. Manifest presence alone and the
+//   legacy 'active' status are insufficient because neither proves the v2 gate.
 //
 // This intentionally excludes structurally_validated documents that are:
 //   - smoke-test artefacts
 //   - known-failure documents (e.g. B2G, B2I)
 //   - historical QA fixtures
 //   - any unreviewed manually-inserted question
-// MongoDB $or never double-counts a document that matches multiple clauses.
-export async function countReviewedInMongoDB(slot, manifestPath = DEFAULT_IMPORT_MANIFEST) {
-  const entries = readManifestEntries(manifestPath);
-  const importedQuestionIds = entries.map(e => e.questionId).filter(Boolean);
-  const orClauses = [{ status: 'active' }];
-  if (importedQuestionIds.length > 0) {
-    // Only add $in when non-empty — an empty $in array matches nothing and is misleading
-    orClauses.push({ _id: { $in: importedQuestionIds } });
-  }
+export async function countReviewedInMongoDB(slot, _manifestPath = DEFAULT_IMPORT_MANIFEST) {
   return Question.countDocuments({
     section: slot.section, domain: slot.domain, skill: slot.skill,
     difficulty: slot.difficulty, type: slot.type,
-    $or: orClauses,
+    status: 'expert_approved',
   });
 }
 
@@ -328,6 +319,7 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
         defensibleOptionCount: independent.solverResult.defensibleOptionCount ?? null },
       review: { decision: null, correctAnswer: null, uniqueAnswer: null, conditionsConsistent: null,
                 explanationCorrect: null, skillTagCorrect: null, difficultyCorrect: null,
+                reviewer: null, reviewerRole: null, expertAttestation: null, reviewedAt: null,
                 reviewerNotes: null, reviewedContent: null },
     });
     console.log(`  [candidate] Q${i+1}: "${q.question.substring(0,65)}"`);

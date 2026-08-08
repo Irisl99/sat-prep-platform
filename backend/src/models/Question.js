@@ -20,11 +20,14 @@ const questionSchema = new mongoose.Schema({
   version:          { type: Number, default: 1 },
   generatedByModel: { type: String, required: true },
   generatedAt:      { type: Date, default: Date.now },
+  candidateId:      { type: String, default: undefined },
+  candidateHash:    { type: String, default: null },
+  independentlyVerifiedAt: { type: Date, default: null },
 
   // ── Lifecycle ─────────────────────────────────────────────
   status: {
     type: String,
-    enum: ['generated', 'structurally_validated', 'ai_reviewed', 'expert_validated', 'active', 'retired'],
+    enum: ['generated', 'structurally_validated', 'ai_reviewed', 'expert_validated', 'expert_approved', 'active', 'retired'],
     default: 'generated',
     required: true,
   },
@@ -32,6 +35,7 @@ const questionSchema = new mongoose.Schema({
   aiReviewedAt:      { type: Date,   default: null },
   aiReviewNotes:     { type: String, default: null },
   expertValidatedAt: { type: Date,   default: null },
+  expertApprovedAt:  { type: Date,   default: null },
   expertId:          { type: String, default: null },
   expertNotes:       { type: String, default: null },
   validatedAt:       { type: Date,   default: null },
@@ -48,5 +52,9 @@ const questionSchema = new mongoose.Schema({
 questionSchema.index({ section: 1, domain: 1, skill: 1, difficulty: 1, type: 1, status: 1, useCount: 1 });
 questionSchema.index({ status: 1 });
 questionSchema.index({ generatedAt: 1 });
+questionSchema.index({ candidateId: 1 }, {
+  unique: true,
+  partialFilterExpression: { candidateId: { $type: 'string' } },
+});
 
 export default mongoose.model('Question', questionSchema);

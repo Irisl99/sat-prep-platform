@@ -159,18 +159,18 @@ test('No Question.create calls', ()=>{
 console.log('\n-- Reviewed-only MongoDB satisfaction (B2N-H3) --');
 test('readManifestEntries exported',()=>assert(src.includes('export function readManifestEntries')));
 test('countReviewedInMongoDB exported',()=>assert(src.includes('export async function countReviewedInMongoDB')));
-test('$or clause with status:active',()=>{
+test('pilot DB count requires exact expert_approved status',()=>{
   const s=src.indexOf('export async function countReviewedInMongoDB');
   const e=src.indexOf('\nexport ',s+1);
   const b=src.slice(s,e);
-  assert(b.includes("status: 'active'"),'active clause missing');
-  assert(b.includes('$or: orClauses'),'$or missing');
+  assert(b.includes("status: 'expert_approved'"),'expert_approved gate missing');
+  assert(!b.includes("status: 'active'"),'legacy active must not satisfy v2 coverage');
 });
-test('importedQuestionIds from manifest questionId field',()=>{
+test('manifest presence alone cannot satisfy coverage',()=>{
   const s=src.indexOf('export async function countReviewedInMongoDB');
   const e=src.indexOf('\nexport ',s+1);
   const b=src.slice(s,e);
-  assert(b.includes('entries.map(e => e.questionId)'));
+  assert(!b.includes('questionId'));
 });
 test('structurally_validated NOT in count filter',()=>{
   const s=src.indexOf('export async function countReviewedInMongoDB');
@@ -181,13 +181,6 @@ test('structurally_validated NOT in count filter',()=>{
 test('known-failure and smoke-test docs excluded: rule comment in source',()=>{
   assert(src.includes('smoke-test') && src.includes('known-failure'));
 });
-test('empty $in guard present',()=>{
-  const s=src.indexOf('export async function countReviewedInMongoDB');
-  const e=src.indexOf('\nexport ',s+1);
-  const b=src.slice(s,e);
-  assert(b.includes('importedQuestionIds.length > 0'));
-});
-test('MongoDB $or never double-counts: comment present',()=>assert(src.includes('never double-counts')));
 test('computeNeeded uses countReviewedInMongoDB not raw countDocuments',()=>{
   const s=src.indexOf('export async function computeNeeded');
   const e=src.indexOf('\nexport ',s+1);

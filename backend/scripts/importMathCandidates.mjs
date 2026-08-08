@@ -61,6 +61,8 @@ export function validateReviewSchema(candidate) {
   if (!r.reviewer || String(r.reviewer).trim() === '')
     return 'review.reviewer is missing or empty (Option A: only review.reviewer accepted; review.reviewerId is not a valid fallback)';
   if (!r.reviewedAt || String(r.reviewedAt).trim() === '') return 'review.reviewedAt is missing or empty';
+  if (r.reviewerRole !== 'math_expert') return 'review.reviewerRole must be exactly math_expert';
+  if (r.expertAttestation !== true) return 'review.expertAttestation must be true';
   for (const f of CORRECTNESS_FIELDS) {
     if (!(f in r)) return `review missing required correctness field: ${f}`;
     if (typeof r[f] !== 'boolean') return `review.${f} must be an explicit boolean, not ${JSON.stringify(r[f])}`;
@@ -180,9 +182,14 @@ export async function importReviewFile(reviewFilePath, manifestPath, rejDir, { d
         difficulty:finalContent.difficulty,type:finalContent.type,
         passage:null,passageSource:null,question:finalContent.question,
         options:finalContent.options??null,answer:String(finalContent.answer),
-        explanation:finalContent.explanation,status:'structurally_validated',
+        explanation:finalContent.explanation,status:'expert_approved',
         version:1,generatedByModel:reviewData.generatedByModel,
         generatedAt:reviewData.generatedAt?new Date(reviewData.generatedAt):new Date(),
+        candidateId,candidateHash:candidate.validation.candidateHash,
+        independentlyVerifiedAt:new Date(candidate.validation.verifiedAt),
+        expertApprovedAt:new Date(candidate.review.reviewedAt),
+        expertValidatedAt:new Date(candidate.review.reviewedAt),
+        expertId:candidate.review.reviewer,expertNotes:candidate.review.reviewerNotes||null,
         useCount:0,lastUsedAt:null,
       });
     } catch(err) {
@@ -192,7 +199,7 @@ export async function importReviewFile(reviewFilePath, manifestPath, rejDir, { d
     }
     console.log(`  [imported] ${candidateId} -> _id=${doc._id}`);
     inserted++; importedIds.add(candidateId);
-    const record={candidateId,questionId:String(doc._id),reviewFile:reviewFilePath,reviewer:candidate.review.reviewer,decision,importedAt:new Date().toISOString()};
+    const record={candidateId,questionId:String(doc._id),reviewFile:reviewFilePath,reviewer:candidate.review.reviewer,decision,status:'expert_approved',importedAt:new Date().toISOString()};
     try { appendToManifest(record,manifestPath); }
     catch(err) {
       manifestErrors++;
