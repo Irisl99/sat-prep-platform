@@ -5,9 +5,11 @@ import {
   findSatScopeViolation,
   freezeMathCandidate,
   findSetLevelDuplicate,
+  hashMathExplanation,
   independentlyValidateMathCandidate,
   validateStoredIndependentVerification,
   validateIndependentSolverResult,
+  validateExplanationVerifierResult,
   validateTypeSpecificAnswer,
 } from '../src/services/mathCandidateValidation.js';
 
@@ -90,7 +92,11 @@ await test('stored independent verification must match frozen candidate and answ
     status: 'independently_verified', verifiedAt: new Date().toISOString(),
     conditionsConsistent: true, domainMatch: true, skillMatch: true,
     difficultyRating: 'easy', difficultyMatch: true, languageUnambiguous: true,
-    solutionCount: 1, solvedAnswer: 'C', defensibleOptionCount: 1, distractorsPlausible: true };
+    solutionCount: 1, solvedAnswer: 'C', defensibleOptionCount: 1, distractorsPlausible: true,
+    explanationStatus:'independently_verified',explanationHash:hashMathExplanation(candidate.explanation),
+    explanationVerifiedAt:new Date().toISOString(),
+    explanationReasoningCorrect:true,explanationAnswerConsistent:true,explanationNoAddedAssumptions:true,
+    explanationLanguageClear:true,explanationSatScopeCompliant:true };
   assert.strictEqual(validateStoredIndependentVerification(candidate), null);
   assert(validateStoredIndependentVerification({ ...candidate, answer: 'A' }));
   const gridCandidate = { ...grid, validation: {} };
@@ -98,10 +104,23 @@ await test('stored independent verification must match frozen candidate and answ
     status: 'independently_verified', verifiedAt: new Date().toISOString(),
     conditionsConsistent: true, domainMatch: true, skillMatch: true,
     difficultyRating: 'easy', difficultyMatch: true, languageUnambiguous: true,
-    solutionCount: 1, solvedAnswer: '0.5', defensibleOptionCount: null, distractorsPlausible: null };
+    solutionCount: 1, solvedAnswer: '0.5', defensibleOptionCount: null, distractorsPlausible: null,
+    explanationStatus:'independently_verified',explanationHash:hashMathExplanation(gridCandidate.explanation),
+    explanationVerifiedAt:new Date().toISOString(),
+    explanationReasoningCorrect:true,explanationAnswerConsistent:true,explanationNoAddedAssumptions:true,
+    explanationLanguageClear:true,explanationSatScopeCompliant:true };
   assert.strictEqual(validateStoredIndependentVerification(gridCandidate), null);
   assert.match(validateStoredIndependentVerification({ ...gridCandidate,
     validation: { ...gridCandidate.validation, distractorsPlausible: 'null' } }), /null MCQ-only/);
+});
+
+await test('explanation verifier binds frozen candidate and exact explanation', () => {
+  const result={candidateHash:freezeMathCandidate(mcq).candidateHash,
+    explanationHash:hashMathExplanation(mcq.explanation),status:'verified',reasoningCorrect:true,
+    answerConsistent:true,noAddedAssumptions:true,languageClear:true,satScopeCompliant:true,reason:''};
+  assert.strictEqual(validateExplanationVerifierResult(mcq,mcq.explanation,result),null);
+  assert.match(validateExplanationVerifierResult(mcq,mcq.explanation,{...result,reasoningCorrect:false}),/reasoning/);
+  assert.match(validateExplanationVerifierResult(mcq,'changed explanation',result),/generated explanation/);
 });
 
 await test('taxonomy, difficulty, language, and distractors fail closed', () => {

@@ -58,6 +58,17 @@ const EXPLAINER_OUTPUT_SCHEMA = {
   properties: { explanation: { type: 'string' } },
 };
 
+const EXPLANATION_VERIFIER_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['candidateHash','explanationHash','status','reasoningCorrect','answerConsistent','noAddedAssumptions','languageClear','satScopeCompliant','reason'],
+  properties: {
+    candidateHash: { type: 'string' }, explanationHash: { type: 'string' },
+    status: { type: 'string', enum: ['verified','rejected'] }, reasoningCorrect: { type: 'boolean' },
+    answerConsistent: { type: 'boolean' }, noAddedAssumptions: { type: 'boolean' },
+    languageClear: { type: 'boolean' }, satScopeCompliant: { type: 'boolean' }, reason: { type: 'string' },
+  },
+};
+
 async function callJson(client, prompt, schema, model = DEFAULT_MODEL) {
   const message = await client.messages.create({
     model,
@@ -118,6 +129,20 @@ ${JSON.stringify({ answer: solverResult.answer, method: solverResult.method, sol
       throw new Error('verified explainer returned no explanation');
     return result.explanation.trim();
   };
+}
+
+export function createAnthropicExplanationVerifier(client, { model = DEFAULT_MODEL } = {}) {
+  return async ({ candidate, solverResult, explanation, explanationHash }) =>
+    callJson(client, `Independently verify a student-facing Digital SAT Math explanation against the frozen problem and previously verified solution.
+Check every stated calculation and every distractor rationale, not only the final answer. Reject any false approximation, arithmetic error, changed condition, added assumption, ambiguity, or method outside SAT scope. Never repair or reinterpret the explanation.
+Return only the required structured result. Set reason to a concise specific issue when rejected, or an empty string when verified.
+
+FROZEN PROBLEM AND HASH:
+${JSON.stringify({ ...candidate, candidateHash: solverResult.candidateHash })}
+VERIFIED SOLUTION:
+${JSON.stringify({ answer: solverResult.answer, method: solverResult.method, solution: solverResult.solution })}
+GENERATED EXPLANATION AND HASH:
+${JSON.stringify({ explanation, explanationHash })}`, EXPLANATION_VERIFIER_SCHEMA, model);
 }
 
 export { DEFAULT_MODEL };

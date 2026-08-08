@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
-import { freezeMathCandidate } from '../src/services/mathCandidateValidation.js';
+import { freezeMathCandidate, hashMathExplanation } from '../src/services/mathCandidateValidation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GMC_PATH = path.resolve(__dirname, '..', 'scripts', 'generateMathCandidates.mjs');
@@ -32,7 +32,12 @@ function mkC(id,dec=null) {
     status:'independently_verified', verifiedAt:new Date().toISOString(), conditionsConsistent:true,
     domainMatch:true, skillMatch:true, difficultyRating:'hard', difficultyMatch:true,
     languageUnambiguous:true, solutionCount:1, solvedAnswer:'5', solverFormatRetries:0,
-    defensibleOptionCount:null, distractorsPlausible:null };
+    defensibleOptionCount:null, distractorsPlausible:null,
+    explanationStatus:'independently_verified', explanationHash:hashMathExplanation(candidate.explanation),
+    explanationVerifiedAt:new Date().toISOString(),
+    explanationReasoningCorrect:true, explanationAnswerConsistent:true,
+    explanationNoAddedAssumptions:true, explanationLanguageClear:true,
+    explanationSatScopeCompliant:true };
   return candidate;
 }
 function wF(dir,fn,slot,candidates,rejected=[]) {

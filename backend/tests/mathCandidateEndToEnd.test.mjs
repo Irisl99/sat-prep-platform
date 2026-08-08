@@ -10,6 +10,10 @@ const generated=[{section:'math',domain:slot.domain,skill:slot.skill,difficulty:
   question:'If 2x = 8, what is the value of x?',options:['A. 2','B. 3','C. 4','D. 6'],answer:'C'}];
 const client={messages:{create:async()=>({stop_reason:'end_turn',usage:{},content:[{type:'text',text:JSON.stringify(generated)}]})}};
 let solverSawAnswer=false;
+const verifyExplanation=async ({solverResult,explanationHash})=>({
+  candidateHash:solverResult.candidateHash,explanationHash,status:'verified',reasoningCorrect:true,
+  answerConsistent:true,noAddedAssumptions:true,languageClear:true,satScopeCompliant:true,reason:'',
+});
 const result=await generateSlot(client,slot,'fixture-version',outputDir,'/tmp/not-used.json',1,{
   isDuplicate:async()=>false,
   solveBlind:async input=>{solverSawAnswer='answer' in input||'explanation' in input;return{
@@ -18,6 +22,7 @@ const result=await generateSlot(client,slot,'fixture-version',outputDir,'/tmp/no
     solutionCount:1,answer:'C',defensibleOptionCount:1,distractorsPlausible:true,
     method:'algebra',solution:'Divide both sides by 2 to get x = 4.'};},
   explainVerified:async()=> 'Divide both sides by 2, so x = 4.',
+  verifyExplanation,
 });
 assert.strictEqual(result.candidates,1);
 assert.strictEqual(solverSawAnswer,false);
@@ -53,6 +58,7 @@ const explanationRejectResult=await generateSlot(client,slot,'fixture-version',o
     solutionCount:1,answer:'C',defensibleOptionCount:1,distractorsPlausible:true,
     method:'algebra',solution:'Divide both sides by 2 to get x = 4.'}),
   explainVerified:async()=> 'Let me reconsider. Divide both sides by 2.',
+  verifyExplanation,
 });
 assert.strictEqual(explanationRejectResult.rejected,1);
 const explanationRejectPayload=JSON.parse(fs.readFileSync(explanationRejectResult.filePath,'utf8'));

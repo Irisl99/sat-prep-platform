@@ -1,4 +1,5 @@
 import Question from '../models/Question.js';
+import { hashMathExplanation } from './mathCandidateValidation.js';
 
 export const MATH_PRODUCTION_STATUS = 'expert_approved';
 
@@ -16,6 +17,10 @@ export function validateMathProductionQuestion(question) {
   if (!question.candidateId || !question.candidateHash) return 'candidate provenance missing';
   if (!question.independentlyVerifiedAt || Number.isNaN(new Date(question.independentlyVerifiedAt).getTime()))
     return 'independent verification timestamp missing or invalid';
+  if (!question.explanationVerifiedAt || Number.isNaN(new Date(question.explanationVerifiedAt).getTime()))
+    return 'independent explanation verification timestamp missing or invalid';
+  if (!question.explanationHash || question.explanationHash !== hashMathExplanation(question.explanation))
+    return 'stored explanation does not match independent verification evidence';
   return null;
 }
 

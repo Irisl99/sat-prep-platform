@@ -44,11 +44,12 @@ import {
   parseNumericAnswer,
 } from './seedBank.js';
 import {
-  findSetLevelDuplicate, freezeMathCandidate, findSatScopeViolation, independentlyValidateMathCandidate,
-  validateStoredIndependentVerification,
+  findSetLevelDuplicate, freezeMathCandidate, findSatScopeViolation, hashMathExplanation,
+  independentlyValidateMathCandidate, validateExplanationVerifierResult, validateStoredIndependentVerification,
 } from '../src/services/mathCandidateValidation.js';
 import {
-  buildMathQuestionPrompt, createAnthropicBlindSolver, createAnthropicVerifiedExplainer,
+  buildMathQuestionPrompt, createAnthropicBlindSolver, createAnthropicExplanationVerifier,
+  createAnthropicVerifiedExplainer,
 } from '../src/services/mathCandidatePipeline.js';
 
 const MODEL         = 'claude-sonnet-4-6';
@@ -274,6 +275,7 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
   const passingCandidates = [], rejectedEntries = [];
   const solveBlind = pipeline.solveBlind || createAnthropicBlindSolver(client);
   const explainVerified = pipeline.explainVerified || createAnthropicVerifiedExplainer(client);
+  const verifyExplanation = pipeline.verifyExplanation || createAnthropicExplanationVerifier(client);
   const checkBankDuplicate = pipeline.isDuplicate || isDuplicate;
   const seenGeneratedQuestions = [];
   for (let i = 0; i < parsed.length; i++) {
@@ -356,6 +358,23 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
       rejectedEntries.push({ candidateId: cid, rejectGate: 'explanation_reject', rejectReason: msg,
         auditEvidence: buildIndependentRejectionEvidence(candidateForValidation, independent.solverResult) }); continue;
     }
+    const explanationHash = hashMathExplanation(explanation);
+    let explanationVerification;
+    try {
+      explanationVerification = await verifyExplanation({
+        candidate: candidateForValidation, solverResult: independent.solverResult, explanation, explanationHash,
+      });
+    } catch (err) {
+      explanationVerification = { status: 'rejected', reason: `verifier error: ${err.message}` };
+    }
+    const explanationError = validateExplanationVerifierResult(
+      candidateForValidation, explanation, explanationVerification
+    );
+    if (explanationError) {
+      rejectedEntries.push({ candidateId: cid, rejectGate: 'explanation_verification_reject',
+        rejectReason: explanationError,
+        auditEvidence: buildIndependentRejectionEvidence(candidateForValidation, independent.solverResult, explanation) }); continue;
+    }
     const finalCandidate = { ...candidateForValidation, explanation };
     const finalArtifact = containsGenerationArtifacts(finalCandidate);
     if (finalArtifact) { rejectedEntries.push({ candidateId: cid, rejectGate: 'artifact_reject', rejectReason: `matched "${finalArtifact}"`,
@@ -381,7 +400,14 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
         solvedAnswer: String(independent.solverResult.answer),
         solverFormatRetries: independent.solverResult.formatRetries ?? 0,
         defensibleOptionCount: independent.solverResult.defensibleOptionCount ?? null,
-        distractorsPlausible: independent.solverResult.distractorsPlausible ?? null },
+        distractorsPlausible: independent.solverResult.distractorsPlausible ?? null,
+        explanationStatus: 'independently_verified', explanationHash,
+        explanationVerifiedAt: new Date().toISOString(),
+        explanationReasoningCorrect: explanationVerification.reasoningCorrect,
+        explanationAnswerConsistent: explanationVerification.answerConsistent,
+        explanationNoAddedAssumptions: explanationVerification.noAddedAssumptions,
+        explanationLanguageClear: explanationVerification.languageClear,
+        explanationSatScopeCompliant: explanationVerification.satScopeCompliant },
       review: { decision: null, correctAnswer: null, uniqueAnswer: null, conditionsConsistent: null,
                 explanationCorrect: null, skillTagCorrect: null, difficultyCorrect: null,
                 reviewer: null, reviewerRole: null, expertAttestation: null, reviewedAt: null,

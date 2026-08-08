@@ -1,7 +1,7 @@
 import assert from 'assert';
 import {
   buildMathQuestionPrompt, createAnthropicBlindSolver,
-  createAnthropicVerifiedExplainer, parseStrictJsonObject,
+  createAnthropicExplanationVerifier, createAnthropicVerifiedExplainer, parseStrictJsonObject,
 } from '../src/services/mathCandidatePipeline.js';
 
 let passed=0;
@@ -33,6 +33,16 @@ await test('verified explainer uses verified solution after validation', async (
   const value=await explain({candidate:{question:'What is x?',options:null,type:'grid'},solverResult:{answer:'2',method:'algebra',solution:'x=2'}});
   assert.strictEqual(value,'Solve to get x = 2.');
   assert(sent.indexOf('VERIFIED ANSWER')>sent.indexOf('FROZEN QUESTION'));
+});
+
+await test('explanation verifier checks every calculation and binds both hashes', async () => {
+  let sent='';
+  const client={messages:{create:async request=>{sent=request.messages[0].content;return{stop_reason:'tool_use',content:[{type:'tool_use',name:'return_json',input:{candidateHash:'candidate-hash',explanationHash:'explanation-hash',status:'rejected',reasoningCorrect:false,answerConsistent:true,noAddedAssumptions:true,languageClear:true,satScopeCompliant:true,reason:'29/3 is not approximately 9'}}]};}}};
+  const verify=createAnthropicExplanationVerifier(client);
+  const result=await verify({candidate:{question:'Solve 3x+7=22.',answer:'B'},solverResult:{candidateHash:'candidate-hash',answer:'B',method:'algebra',solution:'x=5'},explanation:'Incorrect distractor rationale.',explanationHash:'explanation-hash'});
+  assert.strictEqual(result.status,'rejected');
+  assert(sent.includes('Check every stated calculation and every distractor rationale'));
+  assert(sent.includes('candidate-hash')&&sent.includes('explanation-hash'));
 });
 
 await test('strict JSON rejects arrays and prose', async () => {

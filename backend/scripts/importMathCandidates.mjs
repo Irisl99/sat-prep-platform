@@ -187,6 +187,8 @@ export async function importReviewFile(reviewFilePath, manifestPath, rejDir, { d
         generatedAt:reviewData.generatedAt?new Date(reviewData.generatedAt):new Date(),
         candidateId,candidateHash:candidate.validation.candidateHash,
         independentlyVerifiedAt:new Date(candidate.validation.verifiedAt),
+        explanationHash:candidate.validation.explanationHash,
+        explanationVerifiedAt:new Date(candidate.validation.explanationVerifiedAt),
         expertApprovedAt:new Date(candidate.review.reviewedAt),
         expertValidatedAt:new Date(candidate.review.reviewedAt),
         expertId:candidate.review.reviewer,expertNotes:candidate.review.reviewerNotes||null,

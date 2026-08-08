@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
-import { freezeMathCandidate } from '../src/services/mathCandidateValidation.js';
+import { freezeMathCandidate, hashMathExplanation } from '../src/services/mathCandidateValidation.js';
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const IMC_PATH=path.resolve(__dirname,'..','scripts','importMathCandidates.mjs');
 let mod; try{mod=await import(IMC_PATH);}catch(err){console.error(`FATAL: ${err.message}`);process.exit(1);}
@@ -25,6 +25,10 @@ function mkC(id,decision='Keep',overrides={}){
     verifiedAt:new Date().toISOString(),solutionCount:1,conditionsConsistent:true,
     domainMatch:true,skillMatch:true,difficultyRating:candidate.difficulty,difficultyMatch:true,languageUnambiguous:true,
     solvedAnswer:String(candidate.answer),defensibleOptionCount:null,distractorsPlausible:null,
+    explanationStatus:'independently_verified',explanationHash:hashMathExplanation(candidate.explanation),
+    explanationVerifiedAt:new Date().toISOString(),
+    explanationReasoningCorrect:true,explanationAnswerConsistent:true,explanationNoAddedAssumptions:true,
+    explanationLanguageClear:true,explanationSatScopeCompliant:true,
     ...(overrides.validationFields||{})};
   return candidate;}
 function mkBatch(dir,filename,candidates,slotOv=null){

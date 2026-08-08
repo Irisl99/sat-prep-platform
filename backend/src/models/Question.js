@@ -23,6 +23,8 @@ const questionSchema = new mongoose.Schema({
   candidateId:      { type: String, default: undefined },
   candidateHash:    { type: String, default: null },
   independentlyVerifiedAt: { type: Date, default: null },
+  explanationHash:  { type: String, default: null },
+  explanationVerifiedAt: { type: Date, default: null },
 
   // ── Lifecycle ─────────────────────────────────────────────
   status: {

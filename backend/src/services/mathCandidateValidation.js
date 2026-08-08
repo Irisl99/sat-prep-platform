@@ -30,6 +30,10 @@ export function freezeMathCandidate(candidate) {
   });
 }
 
+export function hashMathExplanation(explanation) {
+  return createHash('sha256').update(String(explanation || '').trim()).digest('hex');
+}
+
 export function createBlindSolverInput(candidate) {
   const frozen = freezeMathCandidate(candidate);
   return {
@@ -172,6 +176,31 @@ export function validateStoredIndependentVerification(candidate) {
     return 'SPR verification must contain null MCQ-only fields';
   if (!proof.verifiedAt || Number.isNaN(Date.parse(proof.verifiedAt)))
     return 'independent verification timestamp missing or invalid';
+  if (proof.explanationStatus !== 'independently_verified')
+    return 'independent explanation verification evidence missing';
+  if (proof.explanationHash !== hashMathExplanation(candidate.explanation))
+    return 'independent explanation verification does not match stored explanation';
+  if (!proof.explanationVerifiedAt || Number.isNaN(Date.parse(proof.explanationVerifiedAt)))
+    return 'independent explanation verification timestamp missing or invalid';
+  if (proof.explanationReasoningCorrect !== true || proof.explanationAnswerConsistent !== true ||
+      proof.explanationNoAddedAssumptions !== true || proof.explanationLanguageClear !== true ||
+      proof.explanationSatScopeCompliant !== true)
+    return 'stored explanation was not independently verified';
+  return null;
+}
+
+export function validateExplanationVerifierResult(candidate, explanation, result) {
+  if (!result || typeof result !== 'object') return 'explanation verifier returned no result';
+  if (result.candidateHash !== freezeMathCandidate(candidate).candidateHash)
+    return 'explanation verifier result does not match frozen candidate';
+  if (result.explanationHash !== hashMathExplanation(explanation))
+    return 'explanation verifier result does not match generated explanation';
+  if (result.status !== 'verified') return `explanation verifier rejected: ${result.reason || 'unspecified reason'}`;
+  if (result.reasoningCorrect !== true) return 'explanation contains incorrect mathematical reasoning';
+  if (result.answerConsistent !== true) return 'explanation answer is inconsistent with the verified answer';
+  if (result.noAddedAssumptions !== true) return 'explanation adds or changes problem conditions';
+  if (result.languageClear !== true) return 'explanation language is ambiguous or unclear';
+  if (result.satScopeCompliant !== true) return 'explanation uses methods outside SAT scope';
   return null;
 }
 
