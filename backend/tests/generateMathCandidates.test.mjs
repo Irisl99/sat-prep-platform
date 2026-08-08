@@ -13,7 +13,7 @@ catch (err) { console.error(`FATAL: ${err.message}`); process.exit(1); }
 
 const { resolveGeneratorVersion, slotKey, parseSlotArg, makeCandidateId,
   makeSkillSlug, readImportedCandidateIds, countPendingCandidates,
-  writeCandidateFile, parseMaxCandidatesArg, main } = mod;
+  writeCandidateFile, buildIndependentRejectionEvidence, parseMaxCandidatesArg, main } = mod;
 
 const SLOT  = { section:'math', domain:'Algebra', skill:'Linear Equations 2-var', difficulty:'hard', type:'grid' };
 const SLOT2 = { section:'math', domain:'Algebra', skill:'Linear Equations 1-var', difficulty:'easy', type:'mcq' };
@@ -47,7 +47,7 @@ console.log('\n=== generateMathCandidates.test.mjs ===\n');
 console.log('-- ESM import verification --');
 test('Module imports without error', ()=>assert(mod!==undefined));
 test('Import does not run main() (guard works)', ()=>assert(typeof main==='function'));
-test('All helpers exported', ()=>{ for(const fn of [resolveGeneratorVersion,slotKey,parseSlotArg,makeCandidateId,makeSkillSlug,readImportedCandidateIds,countPendingCandidates,writeCandidateFile,main]) assert(typeof fn==='function'); });
+test('All helpers exported', ()=>{ for(const fn of [resolveGeneratorVersion,slotKey,parseSlotArg,makeCandidateId,makeSkillSlug,readImportedCandidateIds,countPendingCandidates,writeCandidateFile,buildIndependentRejectionEvidence,main]) assert(typeof fn==='function'); });
 test('seedBank.js gates reused not duplicated', ()=>{ assert(src.includes("from './seedBank.js'")); assert(src.includes('containsGenerationArtifacts')&&src.includes('isDuplicate')); });
 test('Question.create never in non-comment code', ()=>{ const calls=(nonComment.match(/Question\.create\s*\(/g)||[]).length; assert.strictEqual(calls,0,`Found ${calls}`); });
 test('isDirectExecution guard present', ()=>assert(src.includes('isDirectExecution')&&src.includes('pathToFileURL')));

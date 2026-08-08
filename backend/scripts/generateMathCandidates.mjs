@@ -98,6 +98,33 @@ export function makeCandidateId(slot, timestamp, index) {
   return `math_${makeSkillSlug(slot.skill)}_${slot.difficulty}_${slot.type}_${timestamp}_${index}`;
 }
 
+export function buildIndependentRejectionEvidence(candidate, solverResult) {
+  const frozenProblem = freezeMathCandidate(candidate);
+  const solverEvidence = solverResult && typeof solverResult === 'object' ? {
+    candidateHash: solverResult.candidateHash ?? null,
+    status: solverResult.status ?? null,
+    conditionsConsistent: solverResult.conditionsConsistent ?? null,
+    domainMatch: solverResult.domainMatch ?? null,
+    skillMatch: solverResult.skillMatch ?? null,
+    difficultyRating: solverResult.difficultyRating ?? null,
+    difficultyMatch: solverResult.difficultyMatch ?? null,
+    languageUnambiguous: solverResult.languageUnambiguous ?? null,
+    solutionCount: solverResult.solutionCount ?? null,
+    answer: solverResult.answer ?? null,
+    defensibleOptionCount: solverResult.defensibleOptionCount ?? null,
+    distractorsPlausible: solverResult.distractorsPlausible ?? null,
+    method: solverResult.method ?? null,
+    solution: solverResult.solution ?? null,
+    formatRetries: solverResult.formatRetries ?? 0,
+  } : null;
+  return {
+    frozenProblem,
+    generatorAnswer: String(candidate.answer),
+    solverEvidence,
+    note: 'Frozen problem is immutable; evidence is for audit only and must not be used to repair the candidate.',
+  };
+}
+
 export function readImportedCandidateIds(manifestPath = DEFAULT_IMPORT_MANIFEST) {
   if (!existsSync(manifestPath)) return new Set();
   try {
@@ -310,7 +337,12 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
     catch (err) { independent = { valid: false, reason: `solver error: ${err.message}` }; }
     if (!independent.valid) {
       console.warn(`  [independent_solver_reject] Q${i+1}: ${independent.reason}`);
-      rejectedEntries.push({ candidateId: cid, rejectGate: 'independent_solver_reject', rejectReason: independent.reason }); continue;
+      rejectedEntries.push({
+        candidateId: cid,
+        rejectGate: 'independent_solver_reject',
+        rejectReason: independent.reason,
+        auditEvidence: buildIndependentRejectionEvidence(candidateForValidation, independent.solverResult),
+      }); continue;
     }
     let explanation;
     try { explanation = await explainVerified({ candidate: candidateForValidation, solverResult: independent.solverResult }); }
