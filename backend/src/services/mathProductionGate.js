@@ -1,5 +1,5 @@
 import Question from '../models/Question.js';
-import { hashMathExplanation } from './mathCandidateValidation.js';
+import { findExplanationPolicyViolation, hashMathExplanation } from './mathCandidateValidation.js';
 
 export const MATH_PRODUCTION_STATUS = 'expert_approved';
 
@@ -21,6 +21,8 @@ export function validateMathProductionQuestion(question) {
     return 'independent explanation verification timestamp missing or invalid';
   if (!question.explanationHash || question.explanationHash !== hashMathExplanation(question.explanation))
     return 'stored explanation does not match independent verification evidence';
+  const explanationPolicyError = findExplanationPolicyViolation(question, question.explanation);
+  if (explanationPolicyError) return explanationPolicyError;
   return null;
 }
 

@@ -44,7 +44,7 @@ import {
   parseNumericAnswer,
 } from './seedBank.js';
 import {
-  findSetLevelDuplicate, freezeMathCandidate, findSatScopeViolation, hashMathExplanation,
+  findExplanationPolicyViolation, findSetLevelDuplicate, freezeMathCandidate, findSatScopeViolation, hashMathExplanation,
   independentlyValidateMathCandidate, validateExplanationVerifierResult, validateStoredIndependentVerification,
 } from '../src/services/mathCandidateValidation.js';
 import {
@@ -359,6 +359,12 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
         auditEvidence: buildIndependentRejectionEvidence(candidateForValidation, independent.solverResult) }); continue;
     }
     const explanationHash = hashMathExplanation(explanation);
+    const explanationPolicyError = findExplanationPolicyViolation(candidateForValidation, explanation);
+    if (explanationPolicyError) {
+      rejectedEntries.push({ candidateId: cid, rejectGate: 'explanation_policy_reject',
+        rejectReason: explanationPolicyError,
+        auditEvidence: buildIndependentRejectionEvidence(candidateForValidation, independent.solverResult, explanation) }); continue;
+    }
     let explanationVerification;
     try {
       explanationVerification = await verifyExplanation({
@@ -403,6 +409,7 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
         distractorsPlausible: independent.solverResult.distractorsPlausible ?? null,
         explanationStatus: 'independently_verified', explanationHash,
         explanationVerifiedAt: new Date().toISOString(),
+        explanationPolicyCompliant: true,
         explanationReasoningCorrect: explanationVerification.reasoningCorrect,
         explanationAnswerConsistent: explanationVerification.answerConsistent,
         explanationNoAddedAssumptions: explanationVerification.noAddedAssumptions,

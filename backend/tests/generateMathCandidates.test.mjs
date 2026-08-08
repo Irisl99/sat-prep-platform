@@ -35,6 +35,7 @@ function mkC(id,dec=null) {
     defensibleOptionCount:null, distractorsPlausible:null,
     explanationStatus:'independently_verified', explanationHash:hashMathExplanation(candidate.explanation),
     explanationVerifiedAt:new Date().toISOString(),
+    explanationPolicyCompliant:true,
     explanationReasoningCorrect:true, explanationAnswerConsistent:true,
     explanationNoAddedAssumptions:true, explanationLanguageClear:true,
     explanationSatScopeCompliant:true };

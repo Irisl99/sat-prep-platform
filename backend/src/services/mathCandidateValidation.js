@@ -34,6 +34,20 @@ export function hashMathExplanation(explanation) {
   return createHash('sha256').update(String(explanation || '').trim()).digest('hex');
 }
 
+export function findExplanationPolicyViolation(candidate, explanation) {
+  const text = String(explanation || '');
+  if (/why\s+(?:the\s+)?other\s+(?:choices|options)|distractor/i.test(text))
+    return 'explanation must not discuss incorrect options or distractors';
+  if (candidate?.type === 'mcq') {
+    const correct = String(candidate.answer || '').trim().toUpperCase();
+    for (const label of ['A','B','C','D'].filter(value => value !== correct)) {
+      if (new RegExp(`(?:^|\\s|\\*)${label}\\s*[).:]`, 'm').test(text))
+        return `explanation mentions incorrect option ${label}`;
+    }
+  }
+  return null;
+}
+
 export function createBlindSolverInput(candidate) {
   const frozen = freezeMathCandidate(candidate);
   return {
@@ -180,6 +194,8 @@ export function validateStoredIndependentVerification(candidate) {
     return 'independent explanation verification evidence missing';
   if (proof.explanationHash !== hashMathExplanation(candidate.explanation))
     return 'independent explanation verification does not match stored explanation';
+  if (proof.explanationPolicyCompliant !== true || findExplanationPolicyViolation(candidate, candidate.explanation))
+    return 'stored explanation violates the no-distractor-discussion policy';
   if (!proof.explanationVerifiedAt || Number.isNaN(Date.parse(proof.explanationVerifiedAt)))
     return 'independent explanation verification timestamp missing or invalid';
   if (proof.explanationReasoningCorrect !== true || proof.explanationAnswerConsistent !== true ||

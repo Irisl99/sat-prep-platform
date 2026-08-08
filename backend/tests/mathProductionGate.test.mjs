@@ -8,9 +8,9 @@ import { hashMathExplanation } from '../src/services/mathCandidateValidation.js'
 
 let passed=0;
 async function test(name, fn){await fn();console.log(`[PASS] ${name}`);passed++;}
-const approved={section:'math',status:'expert_approved',expertId:'expert-1',explanation:'Verified explanation.',
+const approved={section:'math',type:'mcq',answer:'B',status:'expert_approved',expertId:'expert-1',explanation:'Verified explanation for B.',
   expertApprovedAt:new Date(),candidateId:'candidate-1',candidateHash:'hash-1',independentlyVerifiedAt:new Date(),
-  explanationVerifiedAt:new Date(),explanationHash:hashMathExplanation('Verified explanation.')};
+  explanationVerifiedAt:new Date(),explanationHash:hashMathExplanation('Verified explanation for B.')};
 
 await test('production filter overrides caller attempts to bypass section or status',()=>{
   assert.deepStrictEqual(buildMathProductionFilter({section:'rw',status:'active',domain:'Algebra'}),
@@ -27,6 +27,9 @@ await test('missing expert or independent provenance fails closed',()=>{
   assert(validateMathProductionQuestion({...approved,independentlyVerifiedAt:null}));
   assert(validateMathProductionQuestion({...approved,explanationVerifiedAt:null}));
   assert(validateMathProductionQuestion({...approved,explanation:'changed'}));
+  const badExplanation='Why the other choices are wrong: A) 1';
+  assert(validateMathProductionQuestion({...approved,explanation:badExplanation,
+    explanationHash:hashMathExplanation(badExplanation)}));
 });
 await test('database query is forced through expert_approved filter',async()=>{
   let received;

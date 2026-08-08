@@ -2,6 +2,7 @@ import assert from 'assert';
 import {
   answersEquivalent,
   createBlindSolverInput,
+  findExplanationPolicyViolation,
   findSatScopeViolation,
   freezeMathCandidate,
   findSetLevelDuplicate,
@@ -95,6 +96,7 @@ await test('stored independent verification must match frozen candidate and answ
     solutionCount: 1, solvedAnswer: 'C', defensibleOptionCount: 1, distractorsPlausible: true,
     explanationStatus:'independently_verified',explanationHash:hashMathExplanation(candidate.explanation),
     explanationVerifiedAt:new Date().toISOString(),
+    explanationPolicyCompliant:true,
     explanationReasoningCorrect:true,explanationAnswerConsistent:true,explanationNoAddedAssumptions:true,
     explanationLanguageClear:true,explanationSatScopeCompliant:true };
   assert.strictEqual(validateStoredIndependentVerification(candidate), null);
@@ -107,6 +109,7 @@ await test('stored independent verification must match frozen candidate and answ
     solutionCount: 1, solvedAnswer: '0.5', defensibleOptionCount: null, distractorsPlausible: null,
     explanationStatus:'independently_verified',explanationHash:hashMathExplanation(gridCandidate.explanation),
     explanationVerifiedAt:new Date().toISOString(),
+    explanationPolicyCompliant:true,
     explanationReasoningCorrect:true,explanationAnswerConsistent:true,explanationNoAddedAssumptions:true,
     explanationLanguageClear:true,explanationSatScopeCompliant:true };
   assert.strictEqual(validateStoredIndependentVerification(gridCandidate), null);
@@ -121,6 +124,12 @@ await test('explanation verifier binds frozen candidate and exact explanation', 
   assert.strictEqual(validateExplanationVerifierResult(mcq,mcq.explanation,result),null);
   assert.match(validateExplanationVerifierResult(mcq,mcq.explanation,{...result,reasoningCorrect:false}),/reasoning/);
   assert.match(validateExplanationVerifierResult(mcq,'changed explanation',result),/generated explanation/);
+});
+
+await test('MCQ explanation policy rejects discussion of incorrect options', () => {
+  assert.strictEqual(findExplanationPolicyViolation(mcq,'Solve 2x = 8 to get x = 4, so the answer is C.'),null);
+  assert.match(findExplanationPolicyViolation(mcq,'Why the other choices are wrong: A) 2'),/must not discuss/);
+  assert.match(findExplanationPolicyViolation(mcq,'D) 6 comes from adding.'),/incorrect option D/);
 });
 
 await test('taxonomy, difficulty, language, and distractors fail closed', () => {

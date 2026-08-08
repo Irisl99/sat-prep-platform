@@ -119,6 +119,7 @@ export function createAnthropicVerifiedExplainer(client, { model = DEFAULT_MODEL
   return async ({ candidate, solverResult }) => {
     const result = await callJson(client, `Write a concise student-facing explanation for a Digital SAT Math question whose independent solution has already been verified.
 Use only the frozen question and verified solution below. Do not mention generation, validation, self-correction, hidden reasoning, or an intended version. Do not change or add conditions. Do not use calculus.
+Explain only the correct solution. Do not discuss, label, or give rationales for incorrect options or distractors.
 Return only: {"explanation":"string"}
 
 FROZEN QUESTION:
