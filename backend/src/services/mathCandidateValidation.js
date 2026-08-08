@@ -76,6 +76,27 @@ export function answersEquivalent(type, storedAnswer, solvedAnswer, tolerance = 
   return stored !== null && solved !== null && Math.abs(stored - solved) <= tolerance;
 }
 
+export function normalizeMathQuestionText(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export function findSetLevelDuplicate(question, previousQuestions, threshold = 0.85) {
+  const normalized = normalizeMathQuestionText(question);
+  if (!normalized) return null;
+  const tokens = new Set(normalized.split(' '));
+  for (const previous of previousQuestions) {
+    const prior = normalizeMathQuestionText(previous);
+    if (normalized === prior) return { previous, similarity: 1 };
+    const priorTokens = new Set(prior.split(' '));
+    if (tokens.size < 6 || priorTokens.size < 6) continue;
+    const intersection = [...tokens].filter(token => priorTokens.has(token)).length;
+    const union = new Set([...tokens, ...priorTokens]).size;
+    const similarity = union === 0 ? 0 : intersection / union;
+    if (similarity >= threshold) return { previous, similarity };
+  }
+  return null;
+}
+
 export function validateTypeSpecificAnswer(candidate) {
   if (candidate.type === 'mcq') {
     if (!Array.isArray(candidate.options) || candidate.options.length !== 4)
@@ -104,12 +125,19 @@ export function validateIndependentSolverResult(candidate, solverResult) {
   if (solverResult.status !== 'solved')
     return `independent solver status must be solved, got ${solverResult.status || 'missing'}`;
   if (solverResult.conditionsConsistent !== true) return 'candidate conditions are inconsistent or unverified';
+  if (solverResult.domainMatch !== true) return 'candidate does not match the requested domain';
+  if (solverResult.skillMatch !== true) return 'candidate does not match the requested skill';
+  if (solverResult.difficultyMatch !== true || solverResult.difficultyRating !== candidate.difficulty)
+    return `candidate difficulty is unverified or mismatched: ${solverResult.difficultyRating || 'missing'}`;
+  if (solverResult.languageUnambiguous !== true) return 'question language is ambiguous or unverified';
   if (!Number.isInteger(solverResult.solutionCount) || solverResult.solutionCount !== 1)
     return `candidate must have exactly one solution, got ${solverResult.solutionCount ?? 'unverified'}`;
   if (!answersEquivalent(candidate.type, candidate.answer, solverResult.answer))
     return 'stored answer disagrees with independent solver';
   if (candidate.type === 'mcq' && solverResult.defensibleOptionCount !== 1)
     return `MCQ must have exactly one defensible option, got ${solverResult.defensibleOptionCount ?? 'unverified'}`;
+  if (candidate.type === 'mcq' && solverResult.distractorsPlausible !== true)
+    return 'MCQ distractors are implausible or unverified';
   const scopeViolation = findSatScopeViolation(candidate.question, solverResult.solution, solverResult.method);
   if (scopeViolation) return `SAT scope violation: ${scopeViolation}`;
   return null;
@@ -122,11 +150,17 @@ export function validateStoredIndependentVerification(candidate) {
   if (proof.candidateHash !== freezeMathCandidate(candidate).candidateHash)
     return 'independent verification does not match frozen candidate';
   if (proof.conditionsConsistent !== true) return 'conditions were not independently verified';
+  if (proof.domainMatch !== true || proof.skillMatch !== true) return 'domain or skill was not independently verified';
+  if (proof.difficultyMatch !== true || proof.difficultyRating !== candidate.difficulty)
+    return 'difficulty was not independently verified';
+  if (proof.languageUnambiguous !== true) return 'language semantics were not independently verified';
   if (proof.solutionCount !== 1) return 'exactly one solution was not independently verified';
   if (!answersEquivalent(candidate.type, candidate.answer, proof.solvedAnswer))
     return 'stored answer does not match independently solved answer';
   if (candidate.type === 'mcq' && proof.defensibleOptionCount !== 1)
     return 'exactly one defensible MCQ option was not independently verified';
+  if (candidate.type === 'mcq' && proof.distractorsPlausible !== true)
+    return 'MCQ distractors were not independently verified';
   if (!proof.verifiedAt || Number.isNaN(Date.parse(proof.verifiedAt)))
     return 'independent verification timestamp missing or invalid';
   return null;

@@ -22,7 +22,9 @@ function mkC(id,decision='Keep',overrides={}){
       reviewedAt:new Date().toISOString(),reviewerNotes:'ok',reviewedContent:null,...(overrides.reviewFields||{})},
     ...(overrides.candidateFields||{})};
   candidate.validation={candidateHash:freezeMathCandidate(candidate).candidateHash,status:'independently_verified',
-    verifiedAt:new Date().toISOString(),solutionCount:1,conditionsConsistent:true,solvedAnswer:String(candidate.answer),defensibleOptionCount:null,
+    verifiedAt:new Date().toISOString(),solutionCount:1,conditionsConsistent:true,
+    domainMatch:true,skillMatch:true,difficultyRating:candidate.difficulty,difficultyMatch:true,languageUnambiguous:true,
+    solvedAnswer:String(candidate.answer),defensibleOptionCount:null,distractorsPlausible:null,
     ...(overrides.validationFields||{})};
   return candidate;}
 function mkBatch(dir,filename,candidates,slotOv=null){

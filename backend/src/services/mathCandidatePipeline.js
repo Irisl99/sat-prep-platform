@@ -44,9 +44,9 @@ export function createAnthropicBlindSolver(client, { model = DEFAULT_MODEL } = {
   return async blindInput => callJson(client, `You are an independent Digital SAT Math validator.
 You receive a frozen problem without the generator's intended answer or explanation. The statement is immutable.
 Never change numbers, add assumptions, reinterpret conditions, or solve an "intended" version. If it is inconsistent, ambiguous, underspecified, out of SAT scope, or does not have exactly one answer, return status "rejected".
-Solve from scratch. For MCQ, evaluate all four options and count how many are defensible.
+Solve from scratch. Independently verify that the declared domain, skill, and difficulty match the actual task, and that the language has only one reasonable mathematical interpretation. For MCQ, evaluate all four options, count how many are defensible, and assess whether every distractor represents a plausible student error.
 Return only one JSON object with exactly these fields:
-{"candidateHash":"${blindInput.candidateHash}","status":"solved|rejected","conditionsConsistent":true,"solutionCount":1,"answer":"A|B|C|D|numeric string","defensibleOptionCount":1,"method":"short method name","solution":"concise verified solution"}
+{"candidateHash":"${blindInput.candidateHash}","status":"solved|rejected","conditionsConsistent":true,"domainMatch":true,"skillMatch":true,"difficultyRating":"easy|medium|hard","difficultyMatch":true,"languageUnambiguous":true,"solutionCount":1,"answer":"A|B|C|D|numeric string","defensibleOptionCount":1,"distractorsPlausible":true,"method":"short method name","solution":"concise verified solution"}
 Use null for answer, solutionCount, or defensibleOptionCount when they cannot be established.
 
 FROZEN PROBLEM:

@@ -15,13 +15,15 @@ await test('question prompt prohibits premature explanation and repair', async (
 
 await test('blind solver prompt excludes intended answer and explanation', async () => {
   let sent='';
-  const client={messages:{create:async request=>{sent=request.messages[0].content;return{stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({candidateHash:'h',status:'solved',conditionsConsistent:true,solutionCount:1,answer:'B',defensibleOptionCount:1,method:'algebra',solution:'x=2'})}]};}}};
+  const client={messages:{create:async request=>{sent=request.messages[0].content;return{stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({candidateHash:'h',status:'solved',conditionsConsistent:true,domainMatch:true,skillMatch:true,difficultyRating:'easy',difficultyMatch:true,languageUnambiguous:true,solutionCount:1,answer:'B',defensibleOptionCount:1,distractorsPlausible:true,method:'algebra',solution:'x=2'})}]};}}};
   const solve=createAnthropicBlindSolver(client);
   await solve({candidateHash:'h',question:'What is x?',options:['1','2','3','4'],type:'mcq'});
   const frozen=sent.split('FROZEN PROBLEM:\n')[1];
   assert(!frozen.includes('"answer"'));
   assert(!frozen.includes('"explanation"'));
   assert(sent.includes('Never change numbers'));
+  assert(sent.includes('difficultyRating'));
+  assert(sent.includes('distractorsPlausible'));
 });
 
 await test('verified explainer uses verified solution after validation', async () => {

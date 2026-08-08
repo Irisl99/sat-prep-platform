@@ -43,7 +43,7 @@ import {
   parseNumericAnswer,
 } from './seedBank.js';
 import {
-  freezeMathCandidate, findSatScopeViolation, independentlyValidateMathCandidate,
+  findSetLevelDuplicate, freezeMathCandidate, findSatScopeViolation, independentlyValidateMathCandidate,
 } from '../src/services/mathCandidateValidation.js';
 import {
   buildMathQuestionPrompt, createAnthropicBlindSolver, createAnthropicVerifiedExplainer,
@@ -233,6 +233,8 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
   const passingCandidates = [], rejectedEntries = [];
   const solveBlind = pipeline.solveBlind || createAnthropicBlindSolver(client);
   const explainVerified = pipeline.explainVerified || createAnthropicVerifiedExplainer(client);
+  const checkBankDuplicate = pipeline.isDuplicate || isDuplicate;
+  const seenGeneratedQuestions = [];
   for (let i = 0; i < parsed.length; i++) {
     const q = parsed[i];
     const cid = makeCandidateId(slot, ts, i);
@@ -247,6 +249,13 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
     let structErr;
     try { validateQuestion(structuralCandidate, slot); } catch (err) { structErr = err.message; }
     if (structErr) { console.warn(`  [structural_reject] Q${i+1}: ${structErr}`); rejectedEntries.push({ candidateId: cid, rejectGate: 'structural_reject', rejectReason: structErr }); continue; }
+    const setDuplicate = findSetLevelDuplicate(q.question, seenGeneratedQuestions);
+    seenGeneratedQuestions.push(q.question);
+    if (setDuplicate) {
+      const msg = `duplicate within generated set (similarity=${setDuplicate.similarity.toFixed(2)})`;
+      console.warn(`  [set_duplicate_reject] Q${i+1}: ${msg}`);
+      rejectedEntries.push({ candidateId: cid, rejectGate: 'set_duplicate_reject', rejectReason: msg }); continue;
+    }
     const artifact = containsGenerationArtifacts({ ...q, explanation: '' });
     if (artifact) { console.warn(`  [artifact_reject] Q${i+1}: "${artifact}"`); rejectedEntries.push({ candidateId: cid, rejectGate: 'artifact_reject', rejectReason: `matched "${artifact}"` }); continue; }
     // Gate 5: Type-specific answer format sanity
@@ -279,7 +288,7 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
         rejectedEntries.push({ candidateId: cid, rejectGate: 'mcq_options_reject', rejectReason: msg }); continue;
       }
     }
-    const dup = await isDuplicate(q.question);
+    const dup = await checkBankDuplicate(q.question);
     if (dup) { console.warn(`  [duplicate_reject] Q${i+1}`); rejectedEntries.push({ candidateId: cid, rejectGate: 'duplicate_reject', rejectReason: 'already exists' }); continue; }
     const candidateForValidation = {
       section: slot.section, domain: slot.domain, skill: slot.skill,
@@ -315,8 +324,13 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
       validation: { candidateHash: frozen.candidateHash, status: 'independently_verified',
         verifiedAt: new Date().toISOString(), solutionCount: independent.solverResult.solutionCount,
         conditionsConsistent: independent.solverResult.conditionsConsistent,
+        domainMatch: independent.solverResult.domainMatch, skillMatch: independent.solverResult.skillMatch,
+        difficultyRating: independent.solverResult.difficultyRating,
+        difficultyMatch: independent.solverResult.difficultyMatch,
+        languageUnambiguous: independent.solverResult.languageUnambiguous,
         solvedAnswer: String(independent.solverResult.answer),
-        defensibleOptionCount: independent.solverResult.defensibleOptionCount ?? null },
+        defensibleOptionCount: independent.solverResult.defensibleOptionCount ?? null,
+        distractorsPlausible: independent.solverResult.distractorsPlausible ?? null },
       review: { decision: null, correctAnswer: null, uniqueAnswer: null, conditionsConsistent: null,
                 explanationCorrect: null, skillTagCorrect: null, difficultyCorrect: null,
                 reviewer: null, reviewerRole: null, expertAttestation: null, reviewedAt: null,

@@ -4,6 +4,7 @@ import {
   createBlindSolverInput,
   findSatScopeViolation,
   freezeMathCandidate,
+  findSetLevelDuplicate,
   independentlyValidateMathCandidate,
   validateStoredIndependentVerification,
   validateIndependentSolverResult,
@@ -51,6 +52,8 @@ await test('solver must prove one solution and one MCQ option', () => {
   const hash = freezeMathCandidate(mcq).candidateHash;
   assert(validateIndependentSolverResult(mcq, {
     candidateHash: hash, status: 'solved', conditionsConsistent: true,
+    domainMatch: true, skillMatch: true, difficultyRating: 'easy', difficultyMatch: true,
+    languageUnambiguous: true, distractorsPlausible: true,
     solutionCount: 2, answer: 'C', defensibleOptionCount: 1,
   }));
 });
@@ -62,6 +65,8 @@ await test('missing solver fails closed', async () => {
 await test('blind solver result can pass', async () => {
   const result = await independentlyValidateMathCandidate(mcq, async input => ({
     candidateHash: input.candidateHash, status: 'solved', conditionsConsistent: true,
+    domainMatch: true, skillMatch: true, difficultyRating: 'easy', difficultyMatch: true,
+    languageUnambiguous: true, distractorsPlausible: true,
     solutionCount: 1, answer: 'C', defensibleOptionCount: 1,
     solution: 'Divide both sides by 2.', method: 'algebra',
   }));
@@ -72,9 +77,26 @@ await test('stored independent verification must match frozen candidate and answ
   const candidate = { ...mcq, validation: {} };
   candidate.validation = { candidateHash: freezeMathCandidate(candidate).candidateHash,
     status: 'independently_verified', verifiedAt: new Date().toISOString(),
-    conditionsConsistent: true, solutionCount: 1, solvedAnswer: 'C', defensibleOptionCount: 1 };
+    conditionsConsistent: true, domainMatch: true, skillMatch: true,
+    difficultyRating: 'easy', difficultyMatch: true, languageUnambiguous: true,
+    solutionCount: 1, solvedAnswer: 'C', defensibleOptionCount: 1, distractorsPlausible: true };
   assert.strictEqual(validateStoredIndependentVerification(candidate), null);
   assert(validateStoredIndependentVerification({ ...candidate, answer: 'A' }));
+});
+
+await test('taxonomy, difficulty, language, and distractors fail closed', () => {
+  const base={candidateHash:freezeMathCandidate(mcq).candidateHash,status:'solved',conditionsConsistent:true,
+    domainMatch:true,skillMatch:true,difficultyRating:'easy',difficultyMatch:true,languageUnambiguous:true,
+    solutionCount:1,answer:'C',defensibleOptionCount:1,distractorsPlausible:true,solution:'x=4',method:'algebra'};
+  for(const field of ['domainMatch','skillMatch','difficultyMatch','languageUnambiguous','distractorsPlausible'])
+    assert(validateIndependentSolverResult(mcq,{...base,[field]:false}),`${field} must fail`);
+  assert(validateIndependentSolverResult(mcq,{...base,difficultyRating:'hard'}));
+});
+
+await test('set-level duplicate catches normalized and near-identical stems', () => {
+  const original='If 2x plus 3 equals 11, what is the value of x?';
+  assert(findSetLevelDuplicate('If 2x + 3 equals 11 what is the value of x', [original]));
+  assert.strictEqual(findSetLevelDuplicate('A circle has radius 5. What is its area?', [original]), null);
 });
 
 console.log(`\n${passed} Math validation tests passed.`);
