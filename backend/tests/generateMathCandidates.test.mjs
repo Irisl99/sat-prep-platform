@@ -13,7 +13,7 @@ catch (err) { console.error(`FATAL: ${err.message}`); process.exit(1); }
 
 const { resolveGeneratorVersion, slotKey, parseSlotArg, makeCandidateId,
   makeSkillSlug, readImportedCandidateIds, countPendingCandidates,
-  writeCandidateFile, main } = mod;
+  writeCandidateFile, parseMaxCandidatesArg, main } = mod;
 
 const SLOT  = { section:'math', domain:'Algebra', skill:'Linear Equations 2-var', difficulty:'hard', type:'grid' };
 const SLOT2 = { section:'math', domain:'Algebra', skill:'Linear Equations 1-var', difficulty:'easy', type:'mcq' };
@@ -88,6 +88,11 @@ test('readImportedCandidateIds empty for missing', ()=>{ const ids=readImportedC
 test('readImportedCandidateIds from manifest', ()=>{ const d=mkT(),m=path.join(d,'m.json'); wM(m,[{candidateId:'c1'},{candidateId:'c2'}]); const ids=readImportedCandidateIds(m); assert(ids.has('c1')&&ids.has('c2')&&ids.size===2); rm(d); });
 test('slotKey correct', ()=>assert.strictEqual(slotKey(SLOT),'math/Algebra/Linear Equations 2-var/hard/grid'));
 test('parseSlotArg rejects wrong format', ()=>assert.throws(()=>parseSlotArg('math/Algebra/hard/grid'),/Invalid slot/));
+test('--max-candidates parses positive integer',()=>assert.strictEqual(parseMaxCandidatesArg(['--max-candidates','1']),1));
+test('--max-candidates absent means uncapped slot need',()=>assert.strictEqual(parseMaxCandidatesArg([]),null));
+test('--max-candidates rejects zero, negative, and non-integer',()=>{
+  for(const value of ['0','-1','1.5','x']) assert.throws(()=>parseMaxCandidatesArg(['--max-candidates',value]));
+});
 
 
 console.log('\n-- Type-specific answer format gate (B2N-H1) --');
@@ -241,9 +246,13 @@ test('count_mismatch message reports requestCount',()=>{
   assert(b.includes('expected=${requestCount}'));
   assert(!b.includes('expected=${TARGET_PER_SLOT}'));
 });
-test('main() passes needed to generateSlot',()=>{
+test('main() passes capped requestCount to generateSlot',()=>{
   const s=src.indexOf('export async function main');
-  assert(src.slice(s).includes('generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, needed)'));
+  assert(src.slice(s).includes('generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, requestCount)'));
+});
+test('main caps requestCount without changing computed need',()=>{
+  const s=src.indexOf('const requestCount = maxCandidates');
+  assert(s>0);assert(src.includes('Math.min(needed, maxCandidates)'));
 });
 test('default requestCount equals TARGET_PER_SLOT',()=>assert(src.includes('requestCount = TARGET_PER_SLOT')));
 test('TARGET_PER_SLOT still used in computeNeeded',()=>{
@@ -259,7 +268,7 @@ test('TARGET_PER_SLOT NOT in generateSlot body',()=>{
 });
 test('B2N-H4 regression: needed=1 causes requestCount=1',()=>{
   const s=src.indexOf('export async function main');
-  assert(src.slice(s).includes('generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, needed)'));
+  assert(src.slice(s).includes('maxCandidates === null ? needed'));
   assert(src.includes('buildMathQuestionPrompt(slot, requestCount)'));
   assert(src.includes('parsed.length !== requestCount'));
 });
@@ -268,7 +277,7 @@ test('requestCount=1 + 2 returned causes count_mismatch (gate proof)',()=>{
   assert(src.includes('expected=${requestCount}'));
 });
 test('needed=2 requestCount=2 for empty slots (same mechanism)',()=>{
-  assert(src.includes('generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, needed)'));
+  assert(src.includes('maxCandidates === null ? needed'));
 });
 test('No API calls in tests',()=>assert(typeof writeCandidateFile==='function'));
 test('No Question.create in non-comment',()=>{

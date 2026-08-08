@@ -13,6 +13,7 @@
  *   node scripts/generateMathCandidates.mjs --slot "math/Algebra/Linear Equations 2-var/hard/grid"
  *   node scripts/generateMathCandidates.mjs --all-math-slots
  *   node scripts/generateMathCandidates.mjs --all-math-slots --dry-run
+ *   node scripts/generateMathCandidates.mjs --slot "..." --max-candidates 1
  *
  * Environment:
  *   MATH_CANDIDATE_OUTPUT_DIR  output directory (default: backend/data/math-candidates/)
@@ -78,6 +79,15 @@ export function parseSlotArg(arg) {
   );
   if (!match) throw new Error(`Slot not found in PILOT_SLOTS: "${arg}"`);
   return match;
+}
+
+export function parseMaxCandidatesArg(args) {
+  const index = args.indexOf('--max-candidates');
+  if (index === -1) return null;
+  const value = Number(args[index + 1]);
+  if (!Number.isInteger(value) || value < 1)
+    throw new Error('--max-candidates must be a positive integer');
+  return value;
 }
 
 export function makeSkillSlug(skill) {
@@ -348,6 +358,9 @@ export async function main() {
   const isDryRun = args.includes('--dry-run');
   const allSlots = args.includes('--all-math-slots');
   const slotIdx  = args.indexOf('--slot');
+  let maxCandidates;
+  try { maxCandidates = parseMaxCandidatesArg(args); }
+  catch (err) { console.error(`[generateMathCandidates] ${err.message}`); process.exit(1); }
   const candidateDir  = process.env.MATH_CANDIDATE_OUTPUT_DIR || DEFAULT_CANDIDATE_DIR;
   const reviewDir     = process.env.MATH_REVIEW_DIR           || DEFAULT_REVIEW_DIR;
   const manifestPath  = process.env.MATH_IMPORT_MANIFEST      || DEFAULT_IMPORT_MANIFEST;
@@ -368,6 +381,7 @@ export async function main() {
   console.log(`Review dir:        ${reviewDir}`);
   console.log(`Mode: ${isDryRun ? 'DRY RUN' : 'LIVE'}`);
   console.log(`Slots: ${targetSlots.length}`);
+  console.log(`Max candidates per slot: ${maxCandidates ?? 'slot need'}`);
   await mongoose.connect(process.env.MONGODB_URI);
   console.log('[generateMathCandidates] Connected\n');
   const plan = [];
@@ -390,7 +404,8 @@ export async function main() {
   let totalCandidates=0, totalRejected=0, totalSkipped=0, totalErrors=0;
   for (const { slot, needed } of plan) {
     if (needed === 0) { console.log(`[skip] ${slotKey(slot)}`); totalSkipped++; continue; }
-    const result = await generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, needed);
+    const requestCount = maxCandidates === null ? needed : Math.min(needed, maxCandidates);
+    const result = await generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, requestCount);
     totalCandidates += result.candidates || 0;
     totalRejected   += result.rejected   || 0;
     if (result.error && !result.filePath) totalErrors++;
