@@ -48,6 +48,17 @@ await test('MCQ and SPR answer gates are type-specific', () => {
 await test('equivalent fraction and decimal SPR answers match', () => {
   assert(answersEquivalent('grid', '1/2', '0.5'));
 });
+await test('SPR rejects non-null or string-null MCQ-only solver fields', () => {
+  const valid = {
+    candidateHash: freezeMathCandidate(grid).candidateHash, status: 'solved', conditionsConsistent: true,
+    domainMatch: true, skillMatch: true, difficultyRating: 'easy', difficultyMatch: true,
+    languageUnambiguous: true, solutionCount: 1, answer: '0.5',
+    defensibleOptionCount: null, distractorsPlausible: null, method: 'algebra', solution: 'x = 1/2',
+  };
+  assert.strictEqual(validateIndependentSolverResult(grid, valid), null);
+  assert.match(validateIndependentSolverResult(grid, { ...valid, distractorsPlausible: 'null' }), /MCQ-only/);
+  assert.match(validateIndependentSolverResult(grid, { ...valid, defensibleOptionCount: 1 }), /MCQ-only/);
+});
 await test('solver must prove one solution and one MCQ option', () => {
   const hash = freezeMathCandidate(mcq).candidateHash;
   assert(validateIndependentSolverResult(mcq, {
@@ -82,6 +93,15 @@ await test('stored independent verification must match frozen candidate and answ
     solutionCount: 1, solvedAnswer: 'C', defensibleOptionCount: 1, distractorsPlausible: true };
   assert.strictEqual(validateStoredIndependentVerification(candidate), null);
   assert(validateStoredIndependentVerification({ ...candidate, answer: 'A' }));
+  const gridCandidate = { ...grid, validation: {} };
+  gridCandidate.validation = { candidateHash: freezeMathCandidate(gridCandidate).candidateHash,
+    status: 'independently_verified', verifiedAt: new Date().toISOString(),
+    conditionsConsistent: true, domainMatch: true, skillMatch: true,
+    difficultyRating: 'easy', difficultyMatch: true, languageUnambiguous: true,
+    solutionCount: 1, solvedAnswer: '0.5', defensibleOptionCount: null, distractorsPlausible: null };
+  assert.strictEqual(validateStoredIndependentVerification(gridCandidate), null);
+  assert.match(validateStoredIndependentVerification({ ...gridCandidate,
+    validation: { ...gridCandidate.validation, distractorsPlausible: 'null' } }), /null MCQ-only/);
 });
 
 await test('taxonomy, difficulty, language, and distractors fail closed', () => {

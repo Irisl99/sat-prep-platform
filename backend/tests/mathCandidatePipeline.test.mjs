@@ -15,7 +15,7 @@ await test('question prompt prohibits premature explanation and repair', async (
 
 await test('blind solver prompt excludes intended answer and explanation', async () => {
   let sent='';
-  const client={messages:{create:async request=>{sent=request.messages[0].content;assert.deepStrictEqual(request.tool_choice,{type:'tool',name:'return_json',disable_parallel_tool_use:true});return{stop_reason:'tool_use',content:[{type:'tool_use',name:'return_json',input:{candidateHash:'h',status:'solved',conditionsConsistent:true,domainMatch:true,skillMatch:true,difficultyRating:'easy',difficultyMatch:true,languageUnambiguous:true,solutionCount:1,answer:'B',defensibleOptionCount:1,distractorsPlausible:true,method:'algebra',solution:'x=2'}}]};}}};
+  const client={messages:{create:async request=>{sent=request.messages[0].content;assert.deepStrictEqual(request.tool_choice,{type:'tool',name:'return_json',disable_parallel_tool_use:true});assert.strictEqual(request.tools[0].strict,true);return{stop_reason:'tool_use',content:[{type:'tool_use',name:'return_json',input:{candidateHash:'h',status:'solved',conditionsConsistent:true,domainMatch:true,skillMatch:true,difficultyRating:'easy',difficultyMatch:true,languageUnambiguous:true,solutionCount:1,answer:'B',defensibleOptionCount:1,distractorsPlausible:true,method:'algebra',solution:'x=2'}}]};}}};
   const solve=createAnthropicBlindSolver(client);
   await solve({candidateHash:'h',question:'What is x?',options:['1','2','3','4'],type:'mcq'});
   const frozen=sent.split('FROZEN PROBLEM:\n')[1];

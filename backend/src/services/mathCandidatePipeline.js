@@ -49,7 +49,7 @@ const SOLVER_OUTPUT_SCHEMA = {
     difficultyRating: { type: 'string', enum: ['easy','medium','hard'] }, difficultyMatch: { type: 'boolean' },
     languageUnambiguous: { type: 'boolean' }, solutionCount: { type: ['integer','null'] },
     answer: { type: ['string','null'] }, defensibleOptionCount: { type: ['integer','null'] },
-    distractorsPlausible: { type: 'boolean' }, method: { type: 'string' }, solution: { type: 'string' },
+    distractorsPlausible: { type: ['boolean','null'] }, method: { type: 'string' }, solution: { type: 'string' },
   },
 };
 
@@ -63,7 +63,7 @@ async function callJson(client, prompt, schema, model = DEFAULT_MODEL) {
     model,
     max_tokens: 4000,
     messages: [{ role: 'user', content: prompt }],
-    tools: [{ name: 'return_json', description: 'Return the required validated JSON result.', input_schema: schema }],
+    tools: [{ name: 'return_json', description: 'Return the required validated JSON result.', input_schema: schema, strict: true }],
     tool_choice: { type: 'tool', name: 'return_json', disable_parallel_tool_use: true },
   });
   if (message.stop_reason === 'max_tokens') throw new Error('model response was truncated');
@@ -83,7 +83,7 @@ Never change numbers, add assumptions, reinterpret conditions, or solve an "inte
 Solve from scratch. Independently verify that the declared domain, skill, and difficulty match the actual task, and that the language has only one reasonable mathematical interpretation. For MCQ, evaluate all four options, count how many are defensible, and assess whether every distractor represents a plausible student error.
 Return only one JSON object with exactly these fields:
 {"candidateHash":"${blindInput.candidateHash}","status":"solved|rejected","conditionsConsistent":true,"domainMatch":true,"skillMatch":true,"difficultyRating":"easy|medium|hard","difficultyMatch":true,"languageUnambiguous":true,"solutionCount":1,"answer":"A|B|C|D|numeric string","defensibleOptionCount":1,"distractorsPlausible":true,"method":"short method name","solution":"concise verified solution"}
-Use null for answer, solutionCount, or defensibleOptionCount when they cannot be established.
+Use null for answer or solutionCount when they cannot be established. For SPR/grid questions, set defensibleOptionCount and distractorsPlausible to JSON null (not the string "null").
 
 FROZEN PROBLEM:
 ${JSON.stringify(blindInput)}`;

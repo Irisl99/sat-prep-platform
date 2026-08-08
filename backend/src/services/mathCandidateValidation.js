@@ -138,6 +138,12 @@ export function validateIndependentSolverResult(candidate, solverResult) {
     return `MCQ must have exactly one defensible option, got ${solverResult.defensibleOptionCount ?? 'unverified'}`;
   if (candidate.type === 'mcq' && solverResult.distractorsPlausible !== true)
     return 'MCQ distractors are implausible or unverified';
+  if (candidate.type === 'grid' &&
+      (solverResult.defensibleOptionCount !== null || solverResult.distractorsPlausible !== null))
+    return 'SPR solver must return null for MCQ-only validation fields';
+  if (typeof solverResult.method !== 'string' || solverResult.method.trim() === '' ||
+      typeof solverResult.solution !== 'string' || solverResult.solution.trim() === '')
+    return 'independent solver method or solution is missing';
   const scopeViolation = findSatScopeViolation(candidate.question, solverResult.solution, solverResult.method);
   if (scopeViolation) return `SAT scope violation: ${scopeViolation}`;
   return null;
@@ -161,6 +167,9 @@ export function validateStoredIndependentVerification(candidate) {
     return 'exactly one defensible MCQ option was not independently verified';
   if (candidate.type === 'mcq' && proof.distractorsPlausible !== true)
     return 'MCQ distractors were not independently verified';
+  if (candidate.type === 'grid' &&
+      (proof.defensibleOptionCount !== null || proof.distractorsPlausible !== null))
+    return 'SPR verification must contain null MCQ-only fields';
   if (!proof.verifiedAt || Number.isNaN(Date.parse(proof.verifiedAt)))
     return 'independent verification timestamp missing or invalid';
   return null;
