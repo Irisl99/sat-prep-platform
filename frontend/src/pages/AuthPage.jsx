@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-const API_URL = "https://sat-prep-platform-production.up.railway.app";
+const API_URL = import.meta.env.VITE_API_URL ?? "https://sat-prep-platform-production.up.railway.app";
 
 async function apiCall(path, body) {
   const res = await fetch(`${API_URL}${path}`, {

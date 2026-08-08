@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import Exam from '../models/Exam.js';
 import { requireAuth, requirePremium, checkTestLimit } from '../middleware/auth.js';
-import { generateQuestions, generateWeaknessReport } from '../services/questionGenerator.js';
+import { generateWeaknessReport } from '../services/questionGenerator.js';
+import { getModuleQuestions } from '../services/questionSource.js';
 import { calcSectionScore, shouldRouteHard } from '../services/scoring.js';
 
 const router = Router();
@@ -13,7 +14,7 @@ router.use(requireAuth);
 // Creates a new exam, generates RW Module 1 questions
 router.post('/start', checkTestLimit, async (req, res, next) => {
   try {
-    const questions = await generateQuestions('rw', 'mixed', 27);
+    const questions = await getModuleQuestions('rw', 'mixed', 27, 'rw1');
 
     const exam = await Exam.create({
       userId: req.user._id,
@@ -163,20 +164,20 @@ async function routeNext(exam, completedModuleId, answers) {
   if (completedModuleId === 'rw1') {
     const goHard = shouldRouteHard({ questions: mod.questions, answers });
     const nextId = goHard ? 'rw2h' : 'rw2e';
-    const questions = await generateQuestions('rw', goHard ? 'hard' : 'easy', 27);
+    const questions = await getModuleQuestions('rw', goHard ? 'hard' : 'easy', 27, nextId);
     return { moduleId: nextId, section: 'rw', difficulty: goHard ? 'hard' : 'easy', questions, timeSeconds: 32 * 60 };
   }
 
   if (completedModuleId === 'rw2h' || completedModuleId === 'rw2e') {
     // Generate Math M1 in advance, signal a break
-    const questions = await generateQuestions('math', 'mixed', 22);
+    const questions = await getModuleQuestions('math', 'mixed', 22, 'm1');
     return { moduleId: 'm1', section: 'math', difficulty: 'mixed', questions, timeSeconds: 35 * 60, isBreak: true };
   }
 
   if (completedModuleId === 'm1') {
     const goHard = shouldRouteHard({ questions: mod.questions, answers });
     const nextId = goHard ? 'm2h' : 'm2e';
-    const questions = await generateQuestions('math', goHard ? 'hard' : 'easy', 22);
+    const questions = await getModuleQuestions('math', goHard ? 'hard' : 'easy', 22, nextId);
     return { moduleId: nextId, section: 'math', difficulty: goHard ? 'hard' : 'easy', questions, timeSeconds: 35 * 60 };
   }
 
