@@ -40,14 +40,40 @@ Return only a JSON array with this schema:
 [{"section":"math","domain":"${slot.domain}","skill":"${slot.skill}","difficulty":"${slot.difficulty}","type":"${slot.type}","question":"string","options":${slot.type === 'mcq' ? '["string","string","string","string"]' : 'null'},"answer":"string"}]`;
 }
 
-async function callJson(client, prompt, model = DEFAULT_MODEL) {
+const SOLVER_OUTPUT_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['candidateHash','status','conditionsConsistent','domainMatch','skillMatch','difficultyRating','difficultyMatch','languageUnambiguous','solutionCount','answer','defensibleOptionCount','distractorsPlausible','method','solution'],
+  properties: {
+    candidateHash: { type: 'string' }, status: { type: 'string', enum: ['solved','rejected'] },
+    conditionsConsistent: { type: 'boolean' }, domainMatch: { type: 'boolean' }, skillMatch: { type: 'boolean' },
+    difficultyRating: { type: 'string', enum: ['easy','medium','hard'] }, difficultyMatch: { type: 'boolean' },
+    languageUnambiguous: { type: 'boolean' }, solutionCount: { type: ['integer','null'] },
+    answer: { type: ['string','null'] }, defensibleOptionCount: { type: ['integer','null'] },
+    distractorsPlausible: { type: 'boolean' }, method: { type: 'string' }, solution: { type: 'string' },
+  },
+};
+
+const EXPLAINER_OUTPUT_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['explanation'],
+  properties: { explanation: { type: 'string' } },
+};
+
+async function callJson(client, prompt, schema, model = DEFAULT_MODEL) {
   const message = await client.messages.create({
     model,
     max_tokens: 4000,
     messages: [{ role: 'user', content: prompt }],
+    tools: [{ name: 'return_json', description: 'Return the required validated JSON result.', input_schema: schema }],
+    tool_choice: { type: 'tool', name: 'return_json', disable_parallel_tool_use: true },
   });
   if (message.stop_reason === 'max_tokens') throw new Error('model response was truncated');
-  return parseStrictJsonObject(extractText(message));
+  const calls = (message.content || []).filter(block => block.type === 'tool_use' && block.name === 'return_json');
+  if (calls.length !== 1 || !calls[0].input || typeof calls[0].input !== 'object' || Array.isArray(calls[0].input)) {
+    const error = new Error('model response must contain exactly one return_json tool call');
+    error.code = 'MODEL_JSON_CONTRACT';
+    throw error;
+  }
+  return calls[0].input;
 }
 
 export function buildBlindSolverPrompt(blindInput, { formatRetry = false } = {}) {
@@ -68,7 +94,7 @@ export function createAnthropicBlindSolver(client, { model = DEFAULT_MODEL, maxF
     let formatRetries = 0;
     while (true) {
       try {
-        const result = await callJson(client, buildBlindSolverPrompt(blindInput, { formatRetry: formatRetries > 0 }), model);
+        const result = await callJson(client, buildBlindSolverPrompt(blindInput, { formatRetry: formatRetries > 0 }), SOLVER_OUTPUT_SCHEMA, model);
         return { ...result, formatRetries };
       } catch (error) {
         if (error.code !== 'MODEL_JSON_CONTRACT' || formatRetries >= maxFormatRetries) throw error;
@@ -87,7 +113,7 @@ Return only: {"explanation":"string"}
 FROZEN QUESTION:
 ${JSON.stringify({ question: candidate.question, options: candidate.options, type: candidate.type })}
 VERIFIED ANSWER AND SOLUTION:
-${JSON.stringify({ answer: solverResult.answer, method: solverResult.method, solution: solverResult.solution })}`, model);
+${JSON.stringify({ answer: solverResult.answer, method: solverResult.method, solution: solverResult.solution })}`, EXPLAINER_OUTPUT_SCHEMA, model);
     if (typeof result.explanation !== 'string' || result.explanation.trim() === '')
       throw new Error('verified explainer returned no explanation');
     return result.explanation.trim();

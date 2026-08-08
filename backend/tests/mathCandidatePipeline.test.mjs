@@ -15,7 +15,7 @@ await test('question prompt prohibits premature explanation and repair', async (
 
 await test('blind solver prompt excludes intended answer and explanation', async () => {
   let sent='';
-  const client={messages:{create:async request=>{sent=request.messages[0].content;return{stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({candidateHash:'h',status:'solved',conditionsConsistent:true,domainMatch:true,skillMatch:true,difficultyRating:'easy',difficultyMatch:true,languageUnambiguous:true,solutionCount:1,answer:'B',defensibleOptionCount:1,distractorsPlausible:true,method:'algebra',solution:'x=2'})}]};}}};
+  const client={messages:{create:async request=>{sent=request.messages[0].content;assert.deepStrictEqual(request.tool_choice,{type:'tool',name:'return_json',disable_parallel_tool_use:true});return{stop_reason:'tool_use',content:[{type:'tool_use',name:'return_json',input:{candidateHash:'h',status:'solved',conditionsConsistent:true,domainMatch:true,skillMatch:true,difficultyRating:'easy',difficultyMatch:true,languageUnambiguous:true,solutionCount:1,answer:'B',defensibleOptionCount:1,distractorsPlausible:true,method:'algebra',solution:'x=2'}}]};}}};
   const solve=createAnthropicBlindSolver(client);
   await solve({candidateHash:'h',question:'What is x?',options:['1','2','3','4'],type:'mcq'});
   const frozen=sent.split('FROZEN PROBLEM:\n')[1];
@@ -28,7 +28,7 @@ await test('blind solver prompt excludes intended answer and explanation', async
 
 await test('verified explainer uses verified solution after validation', async () => {
   let sent='';
-  const client={messages:{create:async request=>{sent=request.messages[0].content;return{stop_reason:'end_turn',content:[{type:'text',text:'{"explanation":"Solve to get x = 2."}'}]};}}};
+  const client={messages:{create:async request=>{sent=request.messages[0].content;return{stop_reason:'tool_use',content:[{type:'tool_use',name:'return_json',input:{explanation:'Solve to get x = 2.'}}]};}}};
   const explain=createAnthropicVerifiedExplainer(client);
   const value=await explain({candidate:{question:'What is x?',options:null,type:'grid'},solverResult:{answer:'2',method:'algebra',solution:'x=2'}});
   assert.strictEqual(value,'Solve to get x = 2.');
@@ -46,7 +46,7 @@ await test('blind solver retries strict format once without answer leakage', asy
     difficultyRating:'easy',difficultyMatch:true,languageUnambiguous:true,solutionCount:1,answer:'B',
     defensibleOptionCount:1,distractorsPlausible:true,method:'algebra',solution:'x=2'};
   const client={messages:{create:async request=>{prompts.push(request.messages[0].content);calls++;
-    return{stop_reason:'end_turn',content:[{type:'text',text:calls===1?'I need to solve this first.':JSON.stringify(valid)}]};}}};
+    return calls===1?{stop_reason:'end_turn',content:[{type:'text',text:'I need to solve this first.'}]}:{stop_reason:'tool_use',content:[{type:'tool_use',name:'return_json',input:valid}]};}}};
   const result=await createAnthropicBlindSolver(client)({candidateHash:'h',question:'Q?',options:['1','2','3','4'],type:'mcq'});
   assert.strictEqual(calls,2);assert.strictEqual(result.formatRetries,1);
   assert(prompts[1].startsWith('FORMAT RETRY:'));
