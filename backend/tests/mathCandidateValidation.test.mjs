@@ -1,0 +1,70 @@
+import assert from 'assert';
+import {
+  answersEquivalent,
+  createBlindSolverInput,
+  findSatScopeViolation,
+  freezeMathCandidate,
+  independentlyValidateMathCandidate,
+  validateIndependentSolverResult,
+  validateTypeSpecificAnswer,
+} from '../src/services/mathCandidateValidation.js';
+
+const mcq = {
+  section: 'math', domain: 'Algebra', skill: 'Linear Equations 1-var',
+  difficulty: 'easy', type: 'mcq', question: 'If 2x = 8, what is x?',
+  options: ['A. 2', 'B. 3', 'C. 4', 'D. 6'], answer: 'C',
+  explanation: 'Generator explanation must not reach the blind solver.',
+};
+const grid = { ...mcq, type: 'grid', options: null, answer: '1/2' };
+
+let passed = 0;
+async function test(name, fn) {
+  try { await fn(); console.log(`  [PASS] ${name}`); passed++; }
+  catch (error) { console.error(`  [FAIL] ${name}: ${error.message}`); process.exitCode = 1; }
+}
+
+await test('frozen candidate hash changes with stem', () => {
+  assert.notStrictEqual(freezeMathCandidate(mcq).candidateHash,
+    freezeMathCandidate({ ...mcq, question: 'Changed' }).candidateHash);
+});
+await test('blind solver input excludes intended answer and explanation', () => {
+  const input = createBlindSolverInput(mcq);
+  assert(!('answer' in input));
+  assert(!('explanation' in input));
+  assert(input.candidateHash);
+});
+await test('SAT scope blocker covers calculus methods', () => {
+  assert.strictEqual(findSatScopeViolation('Use a derivative to maximize the area.'), 'derivative');
+  assert.strictEqual(findSatScopeViolation('Solve by ordinary algebra.'), null);
+});
+await test('MCQ and SPR answer gates are type-specific', () => {
+  assert.strictEqual(validateTypeSpecificAnswer(mcq), null);
+  assert.strictEqual(validateTypeSpecificAnswer(grid), null);
+  assert(validateTypeSpecificAnswer({ ...mcq, answer: '4' }));
+  assert(validateTypeSpecificAnswer({ ...grid, answer: 'A' }));
+});
+await test('equivalent fraction and decimal SPR answers match', () => {
+  assert(answersEquivalent('grid', '1/2', '0.5'));
+});
+await test('solver must prove one solution and one MCQ option', () => {
+  const hash = freezeMathCandidate(mcq).candidateHash;
+  assert(validateIndependentSolverResult(mcq, {
+    candidateHash: hash, status: 'solved', conditionsConsistent: true,
+    solutionCount: 2, answer: 'C', defensibleOptionCount: 1,
+  }));
+});
+await test('missing solver fails closed', async () => {
+  const result = await independentlyValidateMathCandidate(mcq);
+  assert.strictEqual(result.valid, false);
+  assert.match(result.reason, /not configured/);
+});
+await test('blind solver result can pass', async () => {
+  const result = await independentlyValidateMathCandidate(mcq, async input => ({
+    candidateHash: input.candidateHash, status: 'solved', conditionsConsistent: true,
+    solutionCount: 1, answer: 'C', defensibleOptionCount: 1,
+    solution: 'Divide both sides by 2.', method: 'algebra',
+  }));
+  assert.strictEqual(result.valid, true);
+});
+
+console.log(`\n${passed} Math validation tests passed.`);

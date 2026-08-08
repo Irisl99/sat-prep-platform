@@ -68,7 +68,7 @@ test('generatorVersion written to file', ()=>{ const d=mkT(); const fp=writeCand
 console.log('\n-- Slot satisfaction --');
 test('Pending candidate counts', ()=>{ const c=mkT(),r=mkT(); wF(c,'c.json',SLOT,[mkC('c1',null)]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),1); rm(c,r); });
 test('Keep in review counts', ()=>{ const c=mkT(),r=mkT(); wF(r,'r.json',SLOT,[mkC('c1','Keep')]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),1); rm(c,r); });
-test('Edit in review counts', ()=>{ const c=mkT(),r=mkT(); wF(r,'r.json',SLOT,[mkC('c1','Edit')]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),1); rm(c,r); });
+test('Edit in review does not count: changed Math content must be regenerated', ()=>{ const c=mkT(),r=mkT(); wF(r,'r.json',SLOT,[mkC('c1','Edit')]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),0); rm(c,r); });
 test('Reject does NOT count', ()=>{ const c=mkT(),r=mkT(); wF(r,'r.json',SLOT,[mkC('c1','Reject')]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),0); rm(c,r); });
 test('Reject causes needed=2', ()=>{ const c=mkT(),r=mkT(); wF(r,'r.json',SLOT,[mkC('c1','Reject'),mkC('c2','Reject')]); assert.strictEqual(needed(0,countPendingCandidates(SLOT,c,r,path.join(c,'no.json'))),2); rm(c,r); });
 test('Same id counted once review wins', ()=>{ const c=mkT(),r=mkT(); wF(c,'c.json',SLOT,[mkC('c1',null)]); wF(r,'r.json',SLOT,[mkC('c1','Keep')]); assert.strictEqual(countPendingCandidates(SLOT,c,r,path.join(c,'no.json')),1); rm(c,r); });

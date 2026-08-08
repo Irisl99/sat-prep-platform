@@ -6,14 +6,17 @@ import mongoose from 'mongoose';
 import Question from '../src/models/Question.js';
 import {
   validateQuestion, containsGenerationArtifacts, checkExplicitAnswerConsistency,
-  parseNumericAnswer, isDuplicate,
+  isDuplicate,
 } from './seedBank.js';
+import {
+  findSatScopeViolation, validateTypeSpecificAnswer,
+} from '../src/services/mathCandidateValidation.js';
 
 const __dirname        = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_MANIFEST = join(__dirname, '..', 'data', 'math-imports', 'imported-candidates.json');
 const DEFAULT_REJ_DIR  = join(__dirname, '..', 'data', 'math-rejections');
 const CORRECTNESS_FIELDS = ['correctAnswer','uniqueAnswer','conditionsConsistent','explanationCorrect','skillTagCorrect','difficultyCorrect'];
-const VALID_DECISIONS    = ['Keep','Edit','Reject'];
+const VALID_DECISIONS    = ['Keep','Reject'];
 const SLOT_FIELDS        = ['section','domain','skill','difficulty','type'];
 const CONTENT_FIELDS     = ['question','answer','explanation'];
 
@@ -53,7 +56,8 @@ export function validateReviewSchema(candidate) {
   if (!r) return 'review block missing';
   const dec = r.decision;
   if (dec === null || dec === undefined) return 'decision is null';
-  if (!VALID_DECISIONS.includes(dec)) return `decision "${dec}" must be Keep/Edit/Reject`;
+  if (!VALID_DECISIONS.includes(dec))
+    return `decision "${dec}" must be Keep/Reject; changed Math content must be rejected and regenerated`;
   if (!r.reviewer || String(r.reviewer).trim() === '')
     return 'review.reviewer is missing or empty (Option A: only review.reviewer accepted; review.reviewerId is not a valid fallback)';
   if (!r.reviewedAt || String(r.reviewedAt).trim() === '') return 'review.reviewedAt is missing or empty';
@@ -61,12 +65,10 @@ export function validateReviewSchema(candidate) {
     if (!(f in r)) return `review missing required correctness field: ${f}`;
     if (typeof r[f] !== 'boolean') return `review.${f} must be an explicit boolean, not ${JSON.stringify(r[f])}`;
   }
-  if (dec === 'Edit') {
-    const rc = r.reviewedContent;
-    if (!rc || typeof rc !== 'object') return 'Edit decision requires reviewedContent object';
-    for (const f of ['question','options','answer','explanation']) {
-      if (!(f in rc) || rc[f] === undefined) return `Edit reviewedContent missing required field: ${f}`;
-    }
+  if (dec === 'Keep') {
+    const failedChecks = CORRECTNESS_FIELDS.filter(f => r[f] !== true);
+    if (failedChecks.length > 0)
+      return `Keep requires all correctness fields=true; failed: ${failedChecks.join(', ')}`;
   }
   return null;
 }
@@ -147,13 +149,7 @@ export async function importReviewFile(reviewFilePath, manifestPath, rejDir, { d
       skippedImported++; continue;
     }
     const slot={section:candidate.section,domain:candidate.domain,skill:candidate.skill,difficulty:candidate.difficulty,type:candidate.type};
-    let finalContent;
-    if (decision==='Keep') {
-      finalContent={...slot,question:candidate.question,options:candidate.options,answer:candidate.answer,explanation:candidate.explanation};
-    } else {
-      const rc=candidate.review.reviewedContent;
-      finalContent={...slot,question:rc.question,options:rc.options,answer:rc.answer,explanation:rc.explanation};
-    }
+    const finalContent={...slot,question:candidate.question,options:candidate.options,answer:candidate.answer,explanation:candidate.explanation};
     const addGateReject=(stage,reason)=>{
       const tag=dryRun?'[dry-run][gate_reject]':'[gate_reject]';
       console.warn(`  ${tag} ${candidateId}: ${stage}: ${reason}`);
@@ -168,7 +164,10 @@ export async function importReviewFile(reviewFilePath, manifestPath, rejDir, { d
     if (artifact) { addGateReject('artifact',`matched "${artifact}"`); continue; }
     const consistency=checkExplicitAnswerConsistency(finalContent,slot);
     if (consistency) { addGateReject('consistency',consistency); continue; }
-    if (parseNumericAnswer(String(finalContent.answer))===null) { addGateReject('numeric',`answer "${finalContent.answer}" not valid numeric`); continue; }
+    const typeError=validateTypeSpecificAnswer(finalContent);
+    if (typeError) { addGateReject('answer_format',typeError); continue; }
+    const scopeViolation=findSatScopeViolation(finalContent.question,finalContent.explanation);
+    if (scopeViolation) { addGateReject('sat_scope',`forbidden topic or method: ${scopeViolation}`); continue; }
     const dup=await isDuplicate(finalContent.question);
     if (dup) { addGateReject('duplicate','question already exists'); continue; }
     if (dryRun) { console.log(`  [dry-run][would-insert] ${candidateId}`); inserted++; continue; }

@@ -130,7 +130,7 @@ export function countPendingCandidates(
     }
   }
   let count = 0;
-  for (const [, dec] of reviewDecisions) if (dec === 'Keep' || dec === 'Edit') count++;
+  for (const [, dec] of reviewDecisions) if (dec === 'Keep') count++;
   count += pendingOnly.size;
   return count;
 }

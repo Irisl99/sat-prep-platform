@@ -58,7 +58,7 @@ test('Missing review object fails',()=>{const c=mkC('c1');delete c.review;assert
 console.log('\n-- validateReviewSchema --');
 test('Valid Keep passes',()=>assert.strictEqual(validateReviewSchema(mkC('c1','Keep')),null));
 test('Valid Reject passes',()=>assert.strictEqual(validateReviewSchema(mkC('c1','Reject')),null));
-test('Valid Edit passes',()=>{const c=mkC('c1','Edit',{reviewFields:{reviewedContent:{question:'Q',options:null,answer:'4',explanation:'E.'}}});assert.strictEqual(validateReviewSchema(c),null);});
+test('Edit refuses: changed Math content must be regenerated',()=>{const c=mkC('c1','Edit',{reviewFields:{reviewedContent:{question:'Q',options:null,answer:'4',explanation:'E.'}}});assert(validateReviewSchema(c)!==null);});
 test('decision=null refuses',()=>assert(validateReviewSchema(mkC('c1',null))!==null));
 test('decision=approve refuses',()=>assert(validateReviewSchema(mkC('c1','approve'))!==null));
 test('reviewer empty refuses (Option A)',()=>{const c=mkC('c1','Keep',{reviewFields:{reviewer:''}});const err=validateReviewSchema(c);assert(err!==null&&err.includes('reviewer'),`Got:${err}`);});
@@ -66,8 +66,7 @@ test('reviewerId only refuses (Option A: no fallback)',()=>{const c=mkC('c1','Ke
 test('reviewedAt empty refuses',()=>assert(validateReviewSchema(mkC('c1','Keep',{reviewFields:{reviewedAt:''}}))!==null));
 test('correctness field null refuses',()=>assert(validateReviewSchema(mkC('c1','Keep',{reviewFields:{correctAnswer:null}}))!==null));
 test('correctness field missing refuses',()=>{const c=mkC('c1','Keep');delete c.review.uniqueAnswer;assert(validateReviewSchema(c)!==null);});
-test('Edit no reviewedContent refuses',()=>assert(validateReviewSchema(mkC('c1','Edit'))!==null));
-test('Edit partial reviewedContent refuses',()=>{const c=mkC('c1','Edit',{reviewFields:{reviewedContent:{question:'Q',options:null,answer:'4'}}});assert(validateReviewSchema(c)!==null);});
+test('Keep with any false correctness field refuses',()=>assert(validateReviewSchema(mkC('c1','Keep',{reviewFields:{uniqueAnswer:false}}))!==null));
 console.log('\n-- validateSlotConsistency --');
 test('Matching slot passes',()=>assert.strictEqual(validateSlotConsistency({...SLOT,question:'Q',options:null,answer:'4',explanation:'E.'},mkC('c1')),null));
 test('Changed section fails',()=>assert(validateSlotConsistency({...SLOT,section:'rw'},mkC('c1'))!==null));
