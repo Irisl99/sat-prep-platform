@@ -36,8 +36,32 @@ await test('verified explainer uses verified solution after validation', async (
 });
 
 await test('strict JSON rejects arrays and prose', async () => {
-  assert.throws(()=>parseStrictJsonObject('[]'));
-  assert.throws(()=>parseStrictJsonObject('Here is JSON: {}'));
+  assert.throws(()=>parseStrictJsonObject('[]'),error=>error.code==='MODEL_JSON_CONTRACT');
+  assert.throws(()=>parseStrictJsonObject('Here is JSON: {}'),error=>error.code==='MODEL_JSON_CONTRACT');
+});
+
+await test('blind solver retries strict format once without answer leakage', async () => {
+  let calls=0;const prompts=[];
+  const valid={candidateHash:'h',status:'solved',conditionsConsistent:true,domainMatch:true,skillMatch:true,
+    difficultyRating:'easy',difficultyMatch:true,languageUnambiguous:true,solutionCount:1,answer:'B',
+    defensibleOptionCount:1,distractorsPlausible:true,method:'algebra',solution:'x=2'};
+  const client={messages:{create:async request=>{prompts.push(request.messages[0].content);calls++;
+    return{stop_reason:'end_turn',content:[{type:'text',text:calls===1?'I need to solve this first.':JSON.stringify(valid)}]};}}};
+  const result=await createAnthropicBlindSolver(client)({candidateHash:'h',question:'Q?',options:['1','2','3','4'],type:'mcq'});
+  assert.strictEqual(calls,2);assert.strictEqual(result.formatRetries,1);
+  assert(prompts[1].startsWith('FORMAT RETRY:'));
+  for(const prompt of prompts){const frozen=prompt.split('FROZEN PROBLEM:\n')[1];assert(!frozen.includes('"answer"'));assert(!frozen.includes('"explanation"'));}
+});
+
+await test('blind solver does not retry transport errors or more than once', async () => {
+  let transportCalls=0;
+  const transport={messages:{create:async()=>{transportCalls++;throw new Error('network down');}}};
+  await assert.rejects(()=>createAnthropicBlindSolver(transport)({candidateHash:'h',question:'Q'}));
+  assert.strictEqual(transportCalls,1);
+  let formatCalls=0;
+  const malformed={messages:{create:async()=>{formatCalls++;return{stop_reason:'end_turn',content:[{type:'text',text:'not json'}]};}}};
+  await assert.rejects(()=>createAnthropicBlindSolver(malformed)({candidateHash:'h',question:'Q'}),error=>error.code==='MODEL_JSON_CONTRACT');
+  assert.strictEqual(formatCalls,2);
 });
 
 console.log(`=== RESULTS: ${passed}/${passed} passed ===`);

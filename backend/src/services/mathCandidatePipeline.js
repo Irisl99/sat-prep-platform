@@ -6,9 +6,19 @@ function extractText(message) {
 
 export function parseStrictJsonObject(raw) {
   const text = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  const parsed = JSON.parse(text);
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch (cause) {
+    const error = new Error(`model response violates strict JSON contract: ${cause.message}`);
+    error.code = 'MODEL_JSON_CONTRACT';
+    throw error;
+  }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
-    throw new Error('model response must be one JSON object');
+  {
+    const error = new Error('model response must be one JSON object');
+    error.code = 'MODEL_JSON_CONTRACT';
+    throw error;
+  }
   return parsed;
 }
 
@@ -40,8 +50,8 @@ async function callJson(client, prompt, model = DEFAULT_MODEL) {
   return parseStrictJsonObject(extractText(message));
 }
 
-export function createAnthropicBlindSolver(client, { model = DEFAULT_MODEL } = {}) {
-  return async blindInput => callJson(client, `You are an independent Digital SAT Math validator.
+export function buildBlindSolverPrompt(blindInput, { formatRetry = false } = {}) {
+  return `${formatRetry ? 'FORMAT RETRY: Your previous response violated the strict JSON-only contract. Re-solve the same frozen problem and output only the JSON object. Do not discuss the prior response.\n' : ''}You are an independent Digital SAT Math validator.
 You receive a frozen problem without the generator's intended answer or explanation. The statement is immutable.
 Never change numbers, add assumptions, reinterpret conditions, or solve an "intended" version. If it is inconsistent, ambiguous, underspecified, out of SAT scope, or does not have exactly one answer, return status "rejected".
 Solve from scratch. Independently verify that the declared domain, skill, and difficulty match the actual task, and that the language has only one reasonable mathematical interpretation. For MCQ, evaluate all four options, count how many are defensible, and assess whether every distractor represents a plausible student error.
@@ -50,7 +60,22 @@ Return only one JSON object with exactly these fields:
 Use null for answer, solutionCount, or defensibleOptionCount when they cannot be established.
 
 FROZEN PROBLEM:
-${JSON.stringify(blindInput)}`, model);
+${JSON.stringify(blindInput)}`;
+}
+
+export function createAnthropicBlindSolver(client, { model = DEFAULT_MODEL, maxFormatRetries = 1 } = {}) {
+  return async blindInput => {
+    let formatRetries = 0;
+    while (true) {
+      try {
+        const result = await callJson(client, buildBlindSolverPrompt(blindInput, { formatRetry: formatRetries > 0 }), model);
+        return { ...result, formatRetries };
+      } catch (error) {
+        if (error.code !== 'MODEL_JSON_CONTRACT' || formatRetries >= maxFormatRetries) throw error;
+        formatRetries++;
+      }
+    }
+  };
 }
 
 export function createAnthropicVerifiedExplainer(client, { model = DEFAULT_MODEL } = {}) {
