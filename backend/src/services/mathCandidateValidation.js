@@ -115,6 +115,23 @@ export function validateIndependentSolverResult(candidate, solverResult) {
   return null;
 }
 
+export function validateStoredIndependentVerification(candidate) {
+  const proof = candidate.validation;
+  if (!proof || typeof proof !== 'object') return 'independent verification evidence missing';
+  if (proof.status !== 'independently_verified') return 'candidate is not independently verified';
+  if (proof.candidateHash !== freezeMathCandidate(candidate).candidateHash)
+    return 'independent verification does not match frozen candidate';
+  if (proof.conditionsConsistent !== true) return 'conditions were not independently verified';
+  if (proof.solutionCount !== 1) return 'exactly one solution was not independently verified';
+  if (!answersEquivalent(candidate.type, candidate.answer, proof.solvedAnswer))
+    return 'stored answer does not match independently solved answer';
+  if (candidate.type === 'mcq' && proof.defensibleOptionCount !== 1)
+    return 'exactly one defensible MCQ option was not independently verified';
+  if (!proof.verifiedAt || Number.isNaN(Date.parse(proof.verifiedAt)))
+    return 'independent verification timestamp missing or invalid';
+  return null;
+}
+
 export async function independentlyValidateMathCandidate(candidate, solveBlind) {
   const formatError = validateTypeSpecificAnswer(candidate);
   if (formatError) return { valid: false, reason: formatError };

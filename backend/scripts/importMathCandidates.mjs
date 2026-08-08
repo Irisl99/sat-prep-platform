@@ -9,7 +9,7 @@ import {
   isDuplicate,
 } from './seedBank.js';
 import {
-  findSatScopeViolation, validateTypeSpecificAnswer,
+  findSatScopeViolation, validateStoredIndependentVerification, validateTypeSpecificAnswer,
 } from '../src/services/mathCandidateValidation.js';
 
 const __dirname        = dirname(fileURLToPath(import.meta.url));
@@ -166,6 +166,8 @@ export async function importReviewFile(reviewFilePath, manifestPath, rejDir, { d
     if (consistency) { addGateReject('consistency',consistency); continue; }
     const typeError=validateTypeSpecificAnswer(finalContent);
     if (typeError) { addGateReject('answer_format',typeError); continue; }
+    const verificationError=validateStoredIndependentVerification(candidate);
+    if (verificationError) { addGateReject('independent_verification',verificationError); continue; }
     const scopeViolation=findSatScopeViolation(finalContent.question,finalContent.explanation);
     if (scopeViolation) { addGateReject('sat_scope',`forbidden topic or method: ${scopeViolation}`); continue; }
     const dup=await isDuplicate(finalContent.question);

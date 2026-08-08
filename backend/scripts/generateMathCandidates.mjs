@@ -34,7 +34,6 @@ import Question from '../src/models/Question.js';
 import {
   PILOT_SLOTS,
   PILOT_TARGET_PER_SLOT,
-  buildPrompt,
   extractAndParseJSON,
   saveDebugResponse,
   validateQuestion,
@@ -43,6 +42,12 @@ import {
   isDuplicate,
   parseNumericAnswer,
 } from './seedBank.js';
+import {
+  freezeMathCandidate, findSatScopeViolation, independentlyValidateMathCandidate,
+} from '../src/services/mathCandidateValidation.js';
+import {
+  buildMathQuestionPrompt, createAnthropicBlindSolver, createAnthropicVerifiedExplainer,
+} from '../src/services/mathCandidatePipeline.js';
 
 const MODEL         = 'claude-sonnet-4-6';
 const TARGET_PER_SLOT = PILOT_TARGET_PER_SLOT;
@@ -199,7 +204,7 @@ export function writeCandidateFile(candidates, rejected, slot, generatorVersion,
   return finalPath;
 }
 
-export async function generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, requestCount = TARGET_PER_SLOT) {
+export async function generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, requestCount = TARGET_PER_SLOT, pipeline = {}) {
   const label = slotKey(slot);
   console.log(`\n[generate] ${label}`);
   const ts = Date.now().toString();
@@ -208,7 +213,7 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
   try {
     message = await client.messages.create({
       model: MODEL, max_tokens: 16000,
-      messages: [{ role: 'user', content: buildPrompt(slot, requestCount) }],
+      messages: [{ role: 'user', content: buildMathQuestionPrompt(slot, requestCount) }],
     });
   } catch (err) {
     console.error(`  [api_error] ${label}: ${err.message}`);
@@ -235,16 +240,24 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
     return { candidates: 0, rejected: parsed.length, error: msg };
   }
   const passingCandidates = [], rejectedEntries = [];
+  const solveBlind = pipeline.solveBlind || createAnthropicBlindSolver(client);
+  const explainVerified = pipeline.explainVerified || createAnthropicVerifiedExplainer(client);
   for (let i = 0; i < parsed.length; i++) {
     const q = parsed[i];
     const cid = makeCandidateId(slot, ts, i);
+    // The generator is deliberately forbidden from producing an explanation.
+    // A temporary value is used only for the legacy structural shape check.
+    if (Object.hasOwn(q, 'explanation')) {
+      const msg = 'generator returned an explanation before independent verification';
+      console.warn(`  [premature_explanation_reject] Q${i+1}: ${msg}`);
+      rejectedEntries.push({ candidateId: cid, rejectGate: 'premature_explanation_reject', rejectReason: msg }); continue;
+    }
+    const structuralCandidate = { ...q, explanation: 'pending independent verification' };
     let structErr;
-    try { validateQuestion(q, slot); } catch (err) { structErr = err.message; }
+    try { validateQuestion(structuralCandidate, slot); } catch (err) { structErr = err.message; }
     if (structErr) { console.warn(`  [structural_reject] Q${i+1}: ${structErr}`); rejectedEntries.push({ candidateId: cid, rejectGate: 'structural_reject', rejectReason: structErr }); continue; }
-    const artifact = containsGenerationArtifacts(q);
+    const artifact = containsGenerationArtifacts({ ...q, explanation: '' });
     if (artifact) { console.warn(`  [artifact_reject] Q${i+1}: "${artifact}"`); rejectedEntries.push({ candidateId: cid, rejectGate: 'artifact_reject', rejectReason: `matched "${artifact}"` }); continue; }
-    const consistency = checkExplicitAnswerConsistency(q, slot);
-    if (consistency) { console.warn(`  [consistency_reject] Q${i+1}: ${consistency}`); rejectedEntries.push({ candidateId: cid, rejectGate: 'consistency_reject', rejectReason: consistency }); continue; }
     // Gate 5: Type-specific answer format sanity
     // Grid-in: answer must be a valid numeric string (parseNumericAnswer)
     // MCQ: answer must be exactly one of A/B/C/D (trimmed)
@@ -277,10 +290,42 @@ export async function generateSlot(client, slot, generatorVersion, candidateDir,
     }
     const dup = await isDuplicate(q.question);
     if (dup) { console.warn(`  [duplicate_reject] Q${i+1}`); rejectedEntries.push({ candidateId: cid, rejectGate: 'duplicate_reject', rejectReason: 'already exists' }); continue; }
+    const candidateForValidation = {
+      section: slot.section, domain: slot.domain, skill: slot.skill,
+      difficulty: slot.difficulty, type: slot.type, question: q.question,
+      options: slot.type === 'grid' ? null : q.options, answer: String(q.answer),
+    };
+    let independent;
+    try { independent = await independentlyValidateMathCandidate(candidateForValidation, solveBlind); }
+    catch (err) { independent = { valid: false, reason: `solver error: ${err.message}` }; }
+    if (!independent.valid) {
+      console.warn(`  [independent_solver_reject] Q${i+1}: ${independent.reason}`);
+      rejectedEntries.push({ candidateId: cid, rejectGate: 'independent_solver_reject', rejectReason: independent.reason }); continue;
+    }
+    let explanation;
+    try { explanation = await explainVerified({ candidate: candidateForValidation, solverResult: independent.solverResult }); }
+    catch (err) {
+      const msg = `verified explanation failed: ${err.message}`;
+      console.warn(`  [explanation_reject] Q${i+1}: ${msg}`);
+      rejectedEntries.push({ candidateId: cid, rejectGate: 'explanation_reject', rejectReason: msg }); continue;
+    }
+    const finalCandidate = { ...candidateForValidation, explanation };
+    const finalArtifact = containsGenerationArtifacts(finalCandidate);
+    if (finalArtifact) { rejectedEntries.push({ candidateId: cid, rejectGate: 'artifact_reject', rejectReason: `matched "${finalArtifact}"` }); continue; }
+    const finalConsistency = checkExplicitAnswerConsistency(finalCandidate, slot);
+    if (finalConsistency) { rejectedEntries.push({ candidateId: cid, rejectGate: 'consistency_reject', rejectReason: finalConsistency }); continue; }
+    const finalScopeViolation = findSatScopeViolation(explanation);
+    if (finalScopeViolation) { rejectedEntries.push({ candidateId: cid, rejectGate: 'sat_scope_reject', rejectReason: finalScopeViolation }); continue; }
+    const frozen = freezeMathCandidate(candidateForValidation);
     passingCandidates.push({
       candidateId: cid, section: slot.section, domain: slot.domain, skill: slot.skill,
       difficulty: slot.difficulty, type: slot.type, question: q.question, options: slot.type === 'grid' ? null : (q.options ?? null),
-      answer: String(q.answer), explanation: q.explanation,
+      answer: String(q.answer), explanation,
+      validation: { candidateHash: frozen.candidateHash, status: 'independently_verified',
+        verifiedAt: new Date().toISOString(), solutionCount: independent.solverResult.solutionCount,
+        conditionsConsistent: independent.solverResult.conditionsConsistent,
+        solvedAnswer: String(independent.solverResult.answer),
+        defensibleOptionCount: independent.solverResult.defensibleOptionCount ?? null },
       review: { decision: null, correctAnswer: null, uniqueAnswer: null, conditionsConsistent: null,
                 explanationCorrect: null, skillTagCorrect: null, difficultyCorrect: null,
                 reviewerNotes: null, reviewedContent: null },

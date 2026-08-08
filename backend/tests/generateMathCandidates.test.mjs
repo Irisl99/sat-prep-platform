@@ -48,7 +48,7 @@ console.log('-- ESM import verification --');
 test('Module imports without error', ()=>assert(mod!==undefined));
 test('Import does not run main() (guard works)', ()=>assert(typeof main==='function'));
 test('All helpers exported', ()=>{ for(const fn of [resolveGeneratorVersion,slotKey,parseSlotArg,makeCandidateId,makeSkillSlug,readImportedCandidateIds,countPendingCandidates,writeCandidateFile,main]) assert(typeof fn==='function'); });
-test('seedBank.js helpers reused not duplicated', ()=>{ assert(src.includes("from './seedBank.js'")); assert(src.includes('buildPrompt')&&src.includes('containsGenerationArtifacts')&&src.includes('isDuplicate')); });
+test('seedBank.js gates reused not duplicated', ()=>{ assert(src.includes("from './seedBank.js'")); assert(src.includes('containsGenerationArtifacts')&&src.includes('isDuplicate')); });
 test('Question.create never in non-comment code', ()=>{ const calls=(nonComment.match(/Question\.create\s*\(/g)||[]).length; assert.strictEqual(calls,0,`Found ${calls}`); });
 test('isDirectExecution guard present', ()=>assert(src.includes('isDirectExecution')&&src.includes('pathToFileURL')));
 test('Atomic write: no .tmp left', ()=>{ const d=mkT(); writeCandidateFile([mkC('c1')],[],SLOT,'v1',d); assert(fs.readdirSync(d).filter(f=>f.endsWith('.tmp')).length===0,'tmp left'); rm(d); });
@@ -227,12 +227,12 @@ console.log('\n-- requestCount fix (B2N-H5) --');
 test('generateSlot signature has requestCount param with default',()=>{
   assert(src.includes('requestCount = TARGET_PER_SLOT'),'requestCount default missing');
 });
-test('buildPrompt called with requestCount not TARGET_PER_SLOT',()=>{
+test('Math question-only prompt called with requestCount not TARGET_PER_SLOT',()=>{
   const s=src.indexOf('export async function generateSlot');
   const e=src.indexOf('\nexport async function main');
   const b=src.slice(s,e);
-  assert(b.includes('buildPrompt(slot, requestCount)'),'must use requestCount');
-  assert(!b.includes('buildPrompt(slot, TARGET_PER_SLOT)'),'must not use TARGET_PER_SLOT');
+  assert(b.includes('buildMathQuestionPrompt(slot, requestCount)'),'must use requestCount');
+  assert(!b.includes('buildMathQuestionPrompt(slot, TARGET_PER_SLOT)'),'must not use TARGET_PER_SLOT');
 });
 test('exact-count gate uses requestCount',()=>{
   const s=src.indexOf('export async function generateSlot');
@@ -267,7 +267,7 @@ test('TARGET_PER_SLOT NOT in generateSlot body',()=>{
 test('B2N-H4 regression: needed=1 causes requestCount=1',()=>{
   const s=src.indexOf('export async function main');
   assert(src.slice(s).includes('generateSlot(client, slot, generatorVersion, candidateDir, manifestPath, needed)'));
-  assert(src.includes('buildPrompt(slot, requestCount)'));
+  assert(src.includes('buildMathQuestionPrompt(slot, requestCount)'));
   assert(src.includes('parsed.length !== requestCount'));
 });
 test('requestCount=1 + 2 returned causes count_mismatch (gate proof)',()=>{

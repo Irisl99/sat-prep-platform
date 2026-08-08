@@ -5,6 +5,7 @@ import {
   findSatScopeViolation,
   freezeMathCandidate,
   independentlyValidateMathCandidate,
+  validateStoredIndependentVerification,
   validateIndependentSolverResult,
   validateTypeSpecificAnswer,
 } from '../src/services/mathCandidateValidation.js';
@@ -65,6 +66,15 @@ await test('blind solver result can pass', async () => {
     solution: 'Divide both sides by 2.', method: 'algebra',
   }));
   assert.strictEqual(result.valid, true);
+});
+
+await test('stored independent verification must match frozen candidate and answer', () => {
+  const candidate = { ...mcq, validation: {} };
+  candidate.validation = { candidateHash: freezeMathCandidate(candidate).candidateHash,
+    status: 'independently_verified', verifiedAt: new Date().toISOString(),
+    conditionsConsistent: true, solutionCount: 1, solvedAnswer: 'C', defensibleOptionCount: 1 };
+  assert.strictEqual(validateStoredIndependentVerification(candidate), null);
+  assert(validateStoredIndependentVerification({ ...candidate, answer: 'A' }));
 });
 
 console.log(`\n${passed} Math validation tests passed.`);

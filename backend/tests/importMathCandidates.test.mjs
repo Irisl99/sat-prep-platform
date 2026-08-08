@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
+import { freezeMathCandidate } from '../src/services/mathCandidateValidation.js';
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const IMC_PATH=path.resolve(__dirname,'..','scripts','importMathCandidates.mjs');
 let mod; try{mod=await import(IMC_PATH);}catch(err){console.error(`FATAL: ${err.message}`);process.exit(1);}
@@ -13,12 +14,16 @@ function rm(...ds){for(const d of ds)if(fs.existsSync(d))fs.rmSync(d,{recursive:
 function wM(p,e){fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,JSON.stringify(e));}
 function mkC(id,decision='Keep',overrides={}){
   const bv=decision!=='Reject';
-  return{candidateId:id,section:'math',domain:'Algebra',skill:'Linear Equations 2-var',difficulty:'hard',type:'grid',
+  const candidate={candidateId:id,section:'math',domain:'Algebra',skill:'Linear Equations 2-var',difficulty:'hard',type:'grid',
     question:`If 2x + y = 10 and x - y = 2, what is x? (${id})`,options:null,answer:'4',
     explanation:'From x - y = 2: y = x - 2. Then 3x = 12, x = 4.',
     review:{decision,correctAnswer:bv,uniqueAnswer:bv,conditionsConsistent:bv,explanationCorrect:bv,skillTagCorrect:true,difficultyCorrect:true,
       reviewer:'test-reviewer',reviewedAt:new Date().toISOString(),reviewerNotes:'ok',reviewedContent:null,...(overrides.reviewFields||{})},
-    ...(overrides.candidateFields||{})};}
+    ...(overrides.candidateFields||{})};
+  candidate.validation={candidateHash:freezeMathCandidate(candidate).candidateHash,status:'independently_verified',
+    verifiedAt:new Date().toISOString(),solutionCount:1,conditionsConsistent:true,solvedAnswer:String(candidate.answer),defensibleOptionCount:null,
+    ...(overrides.validationFields||{})};
+  return candidate;}
 function mkBatch(dir,filename,candidates,slotOv=null){
   const p={generatorVersion:'test-ver',generatedAt:new Date().toISOString(),generatedByModel:'claude-sonnet-4-6',slot:slotOv||{...SLOT},candidates,rejected:[]};
   const fp=path.join(dir,filename);fs.writeFileSync(fp,JSON.stringify(p,null,2));return fp;}
